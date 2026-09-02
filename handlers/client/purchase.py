@@ -1,7 +1,8 @@
 from decimal import Decimal
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -104,14 +105,34 @@ async def cb_confirm_buy(
         f"<code>{delivery}</code>\n\n"
         f"🛡 Guarde esses dados com segurança!"
     )
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="📧 Receber por E-mail",
+            callback_data=f"order_email:{order.id}",
+        ),
+        InlineKeyboardButton(
+            text="📲 Receber por WhatsApp",
+            callback_data=f"order_whatsapp:{order.id}",
+        ),
+    )
+    builder.row(
+        InlineKeyboardButton(text="🏠 Menu", callback_data="main_menu")
+    )
+
     await callback.message.edit_text(
-        text, reply_markup=main_menu_kb(), parse_mode="HTML"
+        text,
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
     )
     await callback.answer("✅ Compra realizada!")
 
 
 @router.callback_query(F.data.startswith("buy_multi:"))
-async def cb_buy_multi(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+async def cb_buy_multi(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+):
     product_id = int(callback.data.split(":")[1])
     product = await session.get(Product, product_id)
     stock = product.stock_count if product else 0
