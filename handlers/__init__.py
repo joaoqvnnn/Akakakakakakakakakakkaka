@@ -10,6 +10,7 @@ from handlers.client.extras import router as extras_router
 from handlers.client.alerts import router as alerts_router
 from handlers.client.search import router as search_router
 from handlers.client.delivery import router as delivery_router
+from handlers.admin import setup_admin_routers
 
 
 def setup_routers() -> Router:
@@ -25,5 +26,7 @@ def setup_routers() -> Router:
     root.include_router(alerts_router)
     root.include_router(search_router)
     root.include_router(delivery_router)
+
+    root.include_router(setup_admin_routers())
 
     return root
