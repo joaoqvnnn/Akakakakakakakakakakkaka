@@ -5,16 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import SystemSetting
 
+
 DEFAULTS: Dict[str, Any] = {
-    # Gerais
     "store_name": "Larizinha Store",
     "support_link": "https://t.me/suporte",
     "logs_chat_id": "",
     "separator": "===",
     "maintenance_mode": "false",
-    "maintenance_message": "🔧 Nosso sistema está temporariamente em manutenção.\nVoltaremos em breve.",
+    "maintenance_message": "🔧 Sistema em manutenção. Voltamos em breve.",
     "registration_bonus": "0.00",
-    # PIX
     "mp_access_token": "",
     "pix_min": "4.00",
     "pix_max": "5000.00",
@@ -23,33 +22,35 @@ DEFAULTS: Dict[str, Any] = {
     "bonus_min_value": "10.00",
     "bonus_enabled": "true",
     "pix_auto_enabled": "true",
-    # Afiliados
     "affiliate_enabled": "true",
     "affiliate_commission_percent": "20",
     "affiliate_min_withdraw": "20.00",
     "points_per_recharge": "1",
     "points_min_convert": "500",
     "points_multiplier": "0.01",
-    # Anti-flood
     "flood_block_minutes": "10",
     "flood_max_commands": "8",
     "flood_window_seconds": "10",
-    # Estoque
     "low_stock_threshold": "5",
     # Baileys / WhatsApp
     "baileys_enabled": "false",
     "baileys_api_url": "http://127.0.0.1:3000",
     "baileys_api_key": "",
-    # Senha de liberação da entrega (Telegram)
     "delivery_password_enabled": "true",
     "delivery_password": "1234",
-    # Imagem padrão produto no WA (URL pública opcional)
     "delivery_whatsapp_image_url": "",
+    # SMTP e-mail
+    "smtp_enabled": "false",
+    "smtp_host": "",
+    "smtp_port": "587",
+    "smtp_user": "",
+    "smtp_password": "",
+    "smtp_from": "",
+    "smtp_use_tls": "true",
 }
 
-class SettingsService:
-    """Configs do bot gravadas no banco (editáveis pelo Admin no Telegram)."""
 
+class SettingsService:
     @staticmethod
     async def get(session: AsyncSession, key: str, default: Any = None) -> str:
         result = await session.execute(
@@ -94,7 +95,6 @@ class SettingsService:
         )
         row = result.scalar_one_or_none()
         str_value = str(value)
-
         if row:
             row.value = str_value
             row.updated_by = admin_id
@@ -109,7 +109,6 @@ class SettingsService:
                 updated_by=admin_id,
             )
             session.add(row)
-
         await session.flush()
         return row
 
