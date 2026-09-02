@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import SystemSetting
 
-
 DEFAULTS: Dict[str, Any] = {
     # Gerais
     "store_name": "Larizinha Store",
@@ -37,8 +36,16 @@ DEFAULTS: Dict[str, Any] = {
     "flood_window_seconds": "10",
     # Estoque
     "low_stock_threshold": "5",
+    # Baileys / WhatsApp
+    "baileys_enabled": "false",
+    "baileys_api_url": "http://127.0.0.1:3000",
+    "baileys_api_key": "",
+    # Senha de liberação da entrega (Telegram)
+    "delivery_password_enabled": "true",
+    "delivery_password": "1234",
+    # Imagem padrão produto no WA (URL pública opcional)
+    "delivery_whatsapp_image_url": "",
 }
-
 
 class SettingsService:
     """Configs do bot gravadas no banco (editáveis pelo Admin no Telegram)."""
