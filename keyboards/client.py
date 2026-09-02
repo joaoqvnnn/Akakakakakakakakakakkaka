@@ -3,7 +3,7 @@ from typing import List, Optional
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from database.models import Category, Product, ProductAlert
+from database.models import Category, Product
 
 
 def main_menu_kb() -> InlineKeyboardMarkup:
@@ -104,9 +104,7 @@ def insufficient_balance_kb(
             callback_data=f"pix_for_product:{product_id}:{quantity}:{missing_amount:.2f}",
         )
     )
-    builder.row(
-        InlineKeyboardButton(text="❌ Cancelar", callback_data="main_menu")
-    )
+    builder.row(InlineKeyboardButton(text="❌ Cancelar", callback_data="main_menu"))
     return builder.as_markup()
 
 
@@ -118,9 +116,7 @@ def quantity_cancel_kb() -> InlineKeyboardMarkup:
 
 def recharge_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="💠 Pix Rápido", callback_data="pix_custom")
-    )
+    builder.row(InlineKeyboardButton(text="💠 Pix Rápido", callback_data="pix_custom"))
     builder.row(InlineKeyboardButton(text="⏮️ Voltar", callback_data="main_menu"))
     return builder.as_markup()
 
@@ -130,12 +126,6 @@ def pix_created_kb(payment_uuid: str) -> InlineKeyboardMarkup:
     builder.row(
         InlineKeyboardButton(
             text="⏳ Aguardando pagamento",
-            callback_data=f"check_pix:{payment_uuid}",
-        )
-    )
-    builder.row(
-        InlineKeyboardButton(
-            text="📋 Copiar status",
             callback_data=f"check_pix:{payment_uuid}",
         )
     )
@@ -152,6 +142,9 @@ def profile_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🎁 Resgatar Gift Card", callback_data="gift_card"),
         InlineKeyboardButton(text="✏️ Alterar Dados", callback_data="edit_profile"),
     )
+    builder.row(
+        InlineKeyboardButton(text="🔐 Senha de saque", callback_data="security_password")
+    )
     builder.row(InlineKeyboardButton(text="⏮️ Voltar", callback_data="main_menu"))
     return builder.as_markup()
 
@@ -166,46 +159,31 @@ def order_history_kb(
     nav = []
     if current_page > 1:
         nav.append(
-            InlineKeyboardButton(
-                text="⬅️", callback_data=f"history_page:{current_page - 1}"
-            )
+            InlineKeyboardButton(text="⬅️", callback_data=f"history_page:{current_page - 1}")
         )
     nav.append(
-        InlineKeyboardButton(
-            text=f"{current_page}/{total_pages}", callback_data="noop"
-        )
+        InlineKeyboardButton(text=f"{current_page}/{total_pages}", callback_data="noop")
     )
     if current_page < total_pages:
         nav.append(
-            InlineKeyboardButton(
-                text="➡️", callback_data=f"history_page:{current_page + 1}"
-            )
+            InlineKeyboardButton(text="➡️", callback_data=f"history_page:{current_page + 1}")
         )
     if nav:
         builder.row(*nav)
-
     if order_id:
         builder.row(
-            InlineKeyboardButton(
-                text="📧 E-mail", callback_data=f"order_email:{order_id}"
-            ),
+            InlineKeyboardButton(text="📧 E-mail", callback_data=f"order_email:{order_id}"),
             InlineKeyboardButton(
                 text="📲 WhatsApp", callback_data=f"order_whatsapp:{order_id}"
             ),
         )
         builder.row(
-            InlineKeyboardButton(
-                text="📄 PDF", callback_data=f"order_pdf:{order_id}"
-            )
+            InlineKeyboardButton(text="📄 Comprovante", callback_data=f"order_pdf:{order_id}")
         )
-
     if only_active:
         builder.row(
-            InlineKeyboardButton(
-                text="📋 Ver todas as compras", callback_data="history_all"
-            )
+            InlineKeyboardButton(text="📋 Ver todas as compras", callback_data="history_all")
         )
-
     builder.row(InlineKeyboardButton(text="⏮️ Voltar", callback_data="profile"))
     return builder.as_markup()
 
@@ -219,44 +197,27 @@ def affiliates_kb(can_withdraw: bool = False) -> InlineKeyboardMarkup:
             )
         )
     builder.row(
-        InlineKeyboardButton(
-            text="📊 Histórico de Saques", callback_data="affiliate_history"
-        )
+        InlineKeyboardButton(text="📊 Histórico de Saques", callback_data="affiliate_history")
     )
     builder.row(
-        InlineKeyboardButton(
-            text="🔗 Meu Link", callback_data="affiliate_copy_link"
-        )
+        InlineKeyboardButton(text="🔗 Meu Link", callback_data="affiliate_copy_link")
     )
     builder.row(InlineKeyboardButton(text="⏮️ Voltar", callback_data="main_menu"))
     return builder.as_markup()
 
 
 def ranking_kb(active_tab: str = "products") -> InlineKeyboardMarkup:
-    """active_tab: products | recharges | balance | purchases"""
     def mark(tab: str, label: str) -> str:
         return f"✅ {label}" if tab == active_tab else f"☑️ {label}"
 
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(
-            text=mark("products", "Serviços"),
-            callback_data="ranking:products",
-        ),
-        InlineKeyboardButton(
-            text=mark("recharges", "Recargas"),
-            callback_data="ranking:recharges",
-        ),
+        InlineKeyboardButton(text=mark("products", "Serviços"), callback_data="ranking:products"),
+        InlineKeyboardButton(text=mark("recharges", "Recargas"), callback_data="ranking:recharges"),
     )
     builder.row(
-        InlineKeyboardButton(
-            text=mark("balance", "Saldo"),
-            callback_data="ranking:balance",
-        ),
-        InlineKeyboardButton(
-            text=mark("purchases", "Compras"),
-            callback_data="ranking:purchases",
-        ),
+        InlineKeyboardButton(text=mark("balance", "Saldo"), callback_data="ranking:balance"),
+        InlineKeyboardButton(text=mark("purchases", "Compras"), callback_data="ranking:purchases"),
     )
     builder.row(InlineKeyboardButton(text="⏮️ Voltar", callback_data="main_menu"))
     return builder.as_markup()
@@ -272,13 +233,9 @@ def edit_profile_kb(whatsapp: Optional[str] = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     w = whatsapp or "não informado"
     builder.row(
-        InlineKeyboardButton(
-            text=f"📱 WhatsApp: {w}", callback_data="edit_whatsapp"
-        )
+        InlineKeyboardButton(text=f"📱 WhatsApp: {w}", callback_data="edit_whatsapp")
     )
-    builder.row(
-        InlineKeyboardButton(text="📧 E-mail", callback_data="edit_email")
-    )
+    builder.row(InlineKeyboardButton(text="📧 E-mail", callback_data="edit_email"))
     builder.row(InlineKeyboardButton(text="⏮️ Voltar", callback_data="profile"))
     return builder.as_markup()
 
@@ -289,9 +246,7 @@ def support_kb(support_link: str) -> InlineKeyboardMarkup:
     if url and not url.startswith("http"):
         url = f"https://t.me/{url.lstrip('@')}"
     if url:
-        builder.row(
-            InlineKeyboardButton(text="💬 Falar com Suporte", url=url)
-        )
+        builder.row(InlineKeyboardButton(text="💬 Falar com Suporte", url=url))
     builder.row(InlineKeyboardButton(text="⏮️ Voltar", callback_data="main_menu"))
     return builder.as_markup()
 
@@ -302,10 +257,7 @@ def back_kb(callback_data: str = "main_menu") -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def alerts_list_kb(
-    products: list,
-    active_map: dict,
-) -> InlineKeyboardMarkup:
+def alerts_list_kb(products: list, active_map: dict) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for p in products:
         on = active_map.get(p.id, False)
