@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,10 +65,8 @@ class GiftCardService:
         value: Decimal,
         admin_id: Optional[int] = None,
         max_uses: int = 1,
-        expires_at=None,
+        expires_at: Optional[datetime] = None,
     ) -> GiftCard:
-        from typing import Optional  # noqa — se precisar no topo
-
         code = code.strip().upper()
         gift = GiftCard(
             code=code,
