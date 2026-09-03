@@ -18,12 +18,16 @@ class CatStates(StatesGroup):
 
 
 @router.callback_query(F.data == "admin:categories")
-async def cb_categories(callback: CallbackQuery, session: AsyncSession, db_user: User):
+async def cb_categories(
+    callback: CallbackQuery, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         await callback.answer("Acesso negado.", show_alert=True)
         return
 
-    result = await session.execute(select(Category).order_by(Category.position, Category.id))
+    result = await session.execute(
+        select(Category).order_by(Category.position, Category.id)
+    )
     cats = list(result.scalars().all())
 
     b = InlineKeyboardBuilder()
@@ -83,11 +87,16 @@ async def process_emoji(
     emoji = (message.text or "📦").strip()[:8]
     cat = Category(name=data["name"], emoji=emoji, is_active=True, position=0)
     session.add(cat)
-    await message.answer(f"✅ Categoria {emoji} <b>{data['name']}</b> criada.", parse_mode="HTML")
+    await message.answer(
+        f"✅ Categoria {emoji} <b>{data['name']}</b> criada.",
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data.startswith("admin:cat_toggle:"))
-async def cb_toggle(callback: CallbackQuery, session: AsyncSession, db_user: User):
+async def cb_toggle(
+    callback: CallbackQuery, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
     cid = int(callback.data.split(":")[2])
