@@ -1,6 +1,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+
 def admin_main_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="⚙️ CONFIGURAÇÕES", callback_data="admin:cfg"))
@@ -10,6 +11,7 @@ def admin_main_kb() -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="📊 Dashboard", callback_data="admin:dashboard"))
     builder.row(InlineKeyboardButton(text="🔙 Sair", callback_data="main_menu"))
     return builder.as_markup()
+
 
 def admin_config_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -32,6 +34,9 @@ def admin_config_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="📦 Configurar Logins", callback_data="admin:cfg_logins")
     )
     builder.row(
+        InlineKeyboardButton(text="🗂 Categorias", callback_data="admin:categories")
+    )
+    builder.row(
         InlineKeyboardButton(
             text="📲 Entrega WhatsApp (Baileys)", callback_data="admin:cfg_delivery"
         )
@@ -52,13 +57,17 @@ def admin_config_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🖼 Imagem do /start", callback_data="admin:welcome_image")
     )
     builder.row(
-        InlineKeyboardButton(text="🔎 Configurar Pesquisa", callback_data="admin:cfg_search")
+        InlineKeyboardButton(text="🔎 Imagens da Pesquisa", callback_data="admin:cfg_search")
+    )
+    builder.row(
+        InlineKeyboardButton(text="🛡 Anti-flood", callback_data="admin:cfg_flood")
     )
     builder.row(
         InlineKeyboardButton(text="🔐 Senha do site de saque", callback_data="admin:web_password")
     )
     builder.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:main"))
     return builder.as_markup()
+
 
 def admin_cfg_general_kb(maintenance_on: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -74,6 +83,7 @@ def admin_cfg_general_kb(maintenance_on: bool = False) -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:cfg"))
     return builder.as_markup()
 
+
 def admin_cfg_admins_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="➕ Adicionar ADM", callback_data="admin:adm_add"))
@@ -81,6 +91,7 @@ def admin_cfg_admins_kb() -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="📋 Lista de ADM", callback_data="admin:adm_list"))
     builder.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:cfg"))
     return builder.as_markup()
+
 
 def admin_cfg_affiliate_kb(enabled: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -108,6 +119,7 @@ def admin_cfg_affiliate_kb(enabled: bool = True) -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:cfg"))
     return builder.as_markup()
 
+
 def admin_cfg_users_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -122,6 +134,7 @@ def admin_cfg_users_kb() -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:cfg"))
     return builder.as_markup()
 
+
 def admin_cfg_pix_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="🔑 Mudar Token MP", callback_data="admin:pix_token"))
@@ -132,6 +145,7 @@ def admin_cfg_pix_kb() -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="📌 Mín para Bônus", callback_data="admin:pix_bonus_min"))
     builder.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:cfg"))
     return builder.as_markup()
+
 
 def admin_cfg_logins_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -153,6 +167,7 @@ def admin_cfg_logins_kb() -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:cfg"))
     return builder.as_markup()
 
+
 def admin_user_actions_kb(user_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -170,6 +185,7 @@ def admin_user_actions_kb(user_id: int) -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:cfg_users"))
     return builder.as_markup()
 
+
 def admin_payments_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -186,6 +202,7 @@ def admin_payments_kb() -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:transactions"))
     return builder.as_markup()
 
+
 def admin_giftcards_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -193,6 +210,7 @@ def admin_giftcards_kb() -> InlineKeyboardMarkup:
     )
     builder.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:actions"))
     return builder.as_markup()
+
 
 def admin_back_kb(callback_data: str = "admin:main") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
