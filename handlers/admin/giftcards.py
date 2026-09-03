@@ -1,7 +1,6 @@
+import secrets
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
-import secrets
-import string
 
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
@@ -11,79 +10,95 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import User
 from handlers.admin.panel import is_admin
-from keyboards.admin import admin_giftcards_kb, admin_back_kb
+from keyboards.admin import admin_giftcards_kb
 from services.giftcard import GiftCardService
 
 router = Router(name="admin_giftcards")
 
 
-class GiftCreate(StatesGroup):
+class GiftStates(StatesGroup):
     value = State()
     code = State()
+    days = State()
 
 
 @router.callback_query(F.data == "admin:gift_create")
-async def cb_gift_create(callback: CallbackQuery, state: FSMContext, db_user: User):
+async def cb_create(callback: CallbackQuery, state: FSMContext, db_user: User):
     if not is_admin(db_user):
+        await callback.answer("Acesso negado.", show_alert=True)
         return
-    await state.set_state(GiftCreate.value)
-    await callback.message.edit_text(
-        "🎁 <b>Criar Gift Card</b>\n\nEnvie o valor (ex: 20 ou 50.00):",
-        parse_mode="HTML",
-    )
+    await state.set_state(GiftStates.value)
+    await callback.message.edit_text("🎁 Valor do gift card (ex: 10.00):")
     await callback.answer()
 
 
-@router.message(GiftCreate.value)
-async def process_gift_value(message: Message, state: FSMContext, db_user: User):
+@router.message(GiftStates.value)
+async def process_value(message: Message, state: FSMContext, db_user: User):
     if not is_admin(db_user):
         return
     try:
-        value = Decimal((message.text or "").replace(",", "."))
+        value = Decimal((message.text or "").replace(",", ".").strip())
         if value <= 0:
             raise ValueError
     except Exception:
         await message.answer("❌ Valor inválido.")
         return
     await state.update_data(value=str(value))
-    await state.set_state(GiftCreate.code)
+    await state.set_state(GiftStates.code)
     await message.answer(
-        "Envie o código desejado\nou envie <code>auto</code> para gerar automaticamente:",
+        "Código do gift:\n"
+        "• Envie um código customizado, ou\n"
+        "• Envie <code>auto</code> para gerar automaticamente.",
         parse_mode="HTML",
     )
 
 
-@router.message(GiftCreate.code)
-async def process_gift_code(
+@router.message(GiftStates.code)
+async def process_code(message: Message, state: FSMContext, db_user: User):
+    if not is_admin(db_user):
+        return
+    raw = (message.text or "").strip()
+    code = secrets.token_hex(4).upper() if raw.lower() == "auto" else raw.upper()
+    await state.update_data(code=code)
+    await state.set_state(GiftStates.days)
+    await message.answer(
+        "Validade em dias (0 = sem expiração):"
+    )
+
+
+@router.message(GiftStates.days)
+async def process_days(
     message: Message, state: FSMContext, session: AsyncSession, db_user: User
 ):
     if not is_admin(db_user):
         return
+    try:
+        days = int((message.text or "0").strip())
+    except Exception:
+        await message.answer("❌ Número inválido.")
+        return
     data = await state.get_data()
     await state.clear()
-    raw = (message.text or "").strip()
-    if raw.lower() == "auto":
-        alphabet = string.ascii_uppercase + string.digits
-        code = "".join(secrets.choice(alphabet) for _ in range(12))
-    else:
-        code = raw.upper()
-
-    value = Decimal(data["value"])
-    expires = datetime.now(timezone.utc) + timedelta(days=90)
-
-    gift = await GiftCardService.create(
-        session,
-        code=code,
-        value=value,
-        admin_id=db_user.id,
-        max_uses=1,
-        expires_at=expires,
-    )
+    expires = None
+    if days > 0:
+        expires = datetime.now(timezone.utc) + timedelta(days=days)
+    try:
+        gift = await GiftCardService.create(
+            session,
+            code=data["code"],
+            value=Decimal(data["value"]),
+            admin_id=db_user.id,
+            max_uses=1,
+            expires_at=expires,
+        )
+    except ValueError as e:
+        await message.answer(f"❌ {e}", reply_markup=admin_giftcards_kb())
+        return
     await message.answer(
-        f"✅ Gift Card criado!\n\n"
+        f"✅ Gift criado!\n"
         f"Código: <code>{gift.code}</code>\n"
         f"Valor: <b>R$ {gift.value:.2f}</b>\n"
-        f"Validade: 90 dias",
+        f"Validade: {expires.strftime('%d/%m/%Y') if expires else 'sem expiração'}",
         parse_mode="HTML",
         reply_markup=admin_giftcards_kb(),
     )
