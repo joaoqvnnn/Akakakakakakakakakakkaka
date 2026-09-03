@@ -25,14 +25,12 @@
     <div class="card">
       <h1>Transferência bancária</h1>
       <p class="subtitle">
-        Selecione seu banco (tradicional, digital ou cooperativa), informe agência,
-        conta e dígito. Ao confirmar, digite a senha de saque cadastrada no Telegram.
-        O valor será processado via integração com o bot / Mercado Pago.
+        Selecione o banco, agência, conta e dígito. Confirme com a senha de saque do Telegram.
       </p>
 
       <div class="amount-box">
         <span class="hint">Valor do saque</span>
-        <strong id="amountLabel">R$ —</strong>
+        <strong id="amountLabel">Carregando…</strong>
         <span class="hint">Ref: <span id="uuidLabel">—</span></span>
       </div>
 
@@ -56,36 +54,35 @@
         <div class="grid-2">
           <div>
             <label for="account">Número da conta</label>
-            <input id="account" name="account" inputmode="numeric" placeholder="123456" required />
+            <input id="account" name="account" inputmode="numeric" required />
           </div>
           <div>
             <label for="account_digit">Dígito da conta</label>
-            <input id="account_digit" name="account_digit" maxlength="2" placeholder="0" required />
+            <input id="account_digit" name="account_digit" maxlength="2" required />
           </div>
         </div>
 
         <label for="account_type">Tipo de conta</label>
-        <select id="account_type" name="account_type" required>
+        <select id="account_type" required>
           <option value="checking">Corrente</option>
           <option value="savings">Poupança</option>
           <option value="payment">Pagamento</option>
         </select>
 
         <label for="holder_name">Nome do titular</label>
-        <input id="holder_name" name="holder_name" required placeholder="Nome completo" />
+        <input id="holder_name" required />
 
         <label for="holder_document">CPF do titular</label>
-        <input id="holder_document" name="holder_document" inputmode="numeric" placeholder="000.000.000-00" required />
+        <input id="holder_document" inputmode="numeric" placeholder="000.000.000-00" required />
 
         <label for="withdraw_password">Senha de saque (Telegram)</label>
-        <input id="withdraw_password" name="withdraw_password" type="password" required placeholder="Sua senha de saque" />
+        <input id="withdraw_password" type="password" required />
 
         <button class="btn" type="submit">Confirmar e solicitar transferência</button>
-        <button class="btn btn-secondary" type="button" id="btnPix">Prefiro receber por Pix no Telegram</button>
+        <button class="btn btn-secondary" type="button" id="btnPix">Prefiro Pix no Telegram</button>
       </form>
     </div>
-
-    <div class="footer">Conectado ao bot Telegram · Dados criptografados em trânsito (HTTPS)</div>
+    <div class="footer">Conectado ao bot Telegram</div>
   </div>
 
   <script src="/static/js/banks.js"></script>
@@ -93,7 +90,8 @@
     const THEME_KEY = "ls_theme";
     const PASS_KEY = "ls_web_pass_ok";
     if (sessionStorage.getItem(PASS_KEY) !== "1") {
-      location.href = "/login" + location.search;
+      const u = location.pathname.split("/")[2];
+      location.href = u && u !== "form" ? "/saque/" + u : "/login";
     }
 
     function applyTheme(t) {
@@ -108,99 +106,97 @@
       applyTheme(cur === "dark" ? "light" : "dark");
     };
 
-    const uuid =
-      sessionStorage.getItem("ls_saque_uuid") ||
-      (location.pathname.split("/")[2] || "");
+    const pathParts = location.pathname.split("/").filter(Boolean);
+    let uuid = sessionStorage.getItem("ls_saque_uuid") || "";
+    if (pathParts[0] === "saque" && pathParts[1] && pathParts[1] !== "form") {
+      uuid = pathParts[1];
+      sessionStorage.setItem("ls_saque_uuid", uuid);
+    }
     document.getElementById("uuidLabel").textContent = uuid || "—";
-
-    // Valor virá da API do bot; placeholder visual
-    document.getElementById("amountLabel").textContent = "R$ (definido no bot)";
-
     fillBanksSelect(document.getElementById("bank"));
 
-    function onlyDigits(v) {
-      return (v || "").replace(/\D/g, "");
+    async function loadInfo() {
+      if (!uuid) {
+        document.getElementById("amountLabel").textContent = "R$ — (sem UUID)";
+        return;
+      }
+      try {
+        const r = await fetch("/api/saque/" + encodeURIComponent(uuid));
+        const data = await r.json();
+        if (data.ok) {
+          document.getElementById("amountLabel").textContent =
+            "R$ " + Number(data.amount).toFixed(2).replace(".", ",");
+        } else {
+          document.getElementById("amountLabel").textContent = "Saque não encontrado";
+        }
+      } catch (e) {
+        document.getElementById("amountLabel").textContent = "API offline (layout ok)";
+      }
     }
+    loadInfo();
 
+    function onlyDigits(v) { return (v || "").replace(/\D/g, ""); }
     function validCpf(cpf) {
       cpf = onlyDigits(cpf);
       if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
       let s = 0;
       for (let i = 0; i < 9; i++) s += +cpf[i] * (10 - i);
-      let d = (s * 10) % 11;
-      if (d === 10) d = 0;
+      let d = (s * 10) % 11; if (d === 10) d = 0;
       if (d !== +cpf[9]) return false;
       s = 0;
       for (let i = 0; i < 10; i++) s += +cpf[i] * (11 - i);
-      d = (s * 10) % 11;
-      if (d === 10) d = 0;
+      d = (s * 10) % 11; if (d === 10) d = 0;
       return d === +cpf[10];
     }
 
     document.getElementById("bankForm").onsubmit = async (e) => {
       e.preventDefault();
       const msg = document.getElementById("msg");
-      const bank = document.getElementById("bank").value;
-      const agency = onlyDigits(document.getElementById("agency").value);
-      const account = onlyDigits(document.getElementById("account").value);
-      const digit = document.getElementById("account_digit").value.trim();
-      const cpf = document.getElementById("holder_document").value;
-      const pwd = document.getElementById("withdraw_password").value;
-
-      if (!bank) {
-        msg.className = "alert alert-err";
-        msg.style.display = "block";
-        msg.textContent = "Selecione o banco.";
+      if (!uuid) {
+        msg.className = "alert alert-err"; msg.style.display = "block";
+        msg.textContent = "UUID do saque ausente. Abra o link enviado no Telegram.";
         return;
       }
-      if (agency.length < 3 || account.length < 4 || !digit) {
-        msg.className = "alert alert-err";
-        msg.style.display = "block";
-        msg.textContent = "Agência, conta e dígito inválidos.";
-        return;
-      }
-      if (!validCpf(cpf)) {
-        msg.className = "alert alert-err";
-        msg.style.display = "block";
-        msg.textContent = "CPF inválido.";
-        return;
-      }
-      if (!pwd || pwd.length < 4) {
-        msg.className = "alert alert-err";
-        msg.style.display = "block";
-        msg.textContent = "Senha de saque inválida.";
-        return;
-      }
-
       const payload = {
-        uuid,
-        bank_code: bank,
+        bank_code: document.getElementById("bank").value,
         bank_name: document.getElementById("bank").selectedOptions[0].textContent,
-        agency,
+        agency: onlyDigits(document.getElementById("agency").value),
         agency_digit: document.getElementById("agency_digit").value.trim(),
-        account,
-        account_digit: digit,
+        account: onlyDigits(document.getElementById("account").value),
+        account_digit: document.getElementById("account_digit").value.trim(),
         account_type: document.getElementById("account_type").value,
         holder_name: document.getElementById("holder_name").value.trim(),
-        holder_document: onlyDigits(cpf),
-        withdraw_password: pwd,
-        payment_method: "bank_transfer",
+        holder_document: onlyDigits(document.getElementById("holder_document").value),
+        withdraw_password: document.getElementById("withdraw_password").value,
       };
-
-      // Quando o backend estiver no ar:
-      // await fetch(`/api/saque/${uuid}`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) })
-
-      console.log("Payload para o bot/API:", payload);
-      msg.className = "alert alert-ok";
-      msg.style.display = "block";
-      msg.textContent =
-        "Dados validados. Quando a API estiver ligada, o saque será enviado ao bot e processado.";
+      if (!payload.bank_code || !validCpf(payload.holder_document)) {
+        msg.className = "alert alert-err"; msg.style.display = "block";
+        msg.textContent = "Banco ou CPF inválido.";
+        return;
+      }
+      try {
+        const r = await fetch("/api/saque/" + encodeURIComponent(uuid), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json();
+        msg.style.display = "block";
+        if (data.ok) {
+          msg.className = "alert alert-ok";
+          msg.textContent = data.message || "Dados salvos com sucesso.";
+        } else {
+          msg.className = "alert alert-err";
+          msg.textContent = data.error || "Falha ao salvar.";
+        }
+      } catch (err) {
+        msg.className = "alert alert-err"; msg.style.display = "block";
+        msg.textContent = "Não foi possível falar com a API. Servidor offline?";
+      }
     };
 
     document.getElementById("btnPix").onclick = () => {
-      alert(
-        "Pix é feito dentro do Telegram no bot (Afiliados → Solicitar Saque → Pix), com validação de CPF/telefone/e-mail."
-      );
+      alert("Pix é feito no Telegram: Afiliados → Solicitar Saque → Pix.");
     };
   </script>
 </body>
