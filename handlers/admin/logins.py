@@ -1,4 +1,5 @@
 from decimal import Decimal
+from collections import defaultdict
 
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.models import User, Product, ProductStatus, StockItem, AdminLog
 from keyboards.admin import admin_cfg_logins_kb
 from services.settings_service import SettingsService
+from services.stock_notify import notify_if_restocked
 from handlers.admin.panel import is_admin
 
 router = Router(name="admin_logins")
@@ -117,7 +119,9 @@ async def cb_cfg_logins(callback: CallbackQuery, session: AsyncSession, db_user:
 
 
 @router.callback_query(F.data.in_({"admin:login_add", "admin:stock_supply"}))
-async def cb_login_add(callback: CallbackQuery, state: FSMContext, session: AsyncSession, db_user: User):
+async def cb_login_add(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
     sep = await SettingsService.get(session, "separator") or "==="
@@ -133,22 +137,32 @@ async def cb_login_add(callback: CallbackQuery, state: FSMContext, session: Asyn
 
 
 @router.message(LoginStates.add_bulk)
-async def process_add(message: Message, state: FSMContext, session: AsyncSession, db_user: User):
+async def process_add(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
     if message.text and message.text.lower() in ("/cancelar", "cancelar"):
         await state.clear()
         await message.answer("❌ Cancelado.", reply_markup=admin_cfg_logins_kb())
         return
+
     sep = await SettingsService.get(session, "separator") or "==="
     lines = [ln.strip() for ln in (message.text or "").splitlines() if ln.strip()]
     added = 0
+    # product_id -> quantidade adicionada (para alertas)
+    added_by_product: dict[int, int] = defaultdict(int)
+
     for line in lines:
         parsed = _parse_line(line, sep)
         if not parsed:
             continue
         product = await _get_or_create(
-            session, parsed["name"], parsed["price"], parsed["description"], parsed["duration"]
+            session,
+            parsed["name"],
+            parsed["price"],
+            parsed["description"],
+            parsed["duration"],
         )
         if parsed["content"]:
             session.add(StockItem(product_id=product.id, content=parsed["content"]))
@@ -156,17 +170,44 @@ async def process_add(message: Message, state: FSMContext, session: AsyncSession
             if product.status == ProductStatus.OUT_OF_STOCK:
                 product.status = ProductStatus.ACTIVE
             added += 1
-    session.add(AdminLog(admin_id=db_user.id, action="stock_add_bulk", details={"added": added}))
+            added_by_product[product.id] += 1
+
+    session.add(
+        AdminLog(
+            admin_id=db_user.id,
+            action="stock_add_bulk",
+            details={"added": added},
+        )
+    )
     await state.clear()
+
+    # Notifica quem ativou alerta por produto
+    notified_total = 0
+    if added > 0 and added_by_product:
+        for product_id, qty in added_by_product.items():
+            try:
+                n = await notify_if_restocked(
+                    session, message.bot, product_id, qty
+                )
+                notified_total += n
+            except Exception:
+                pass
+
+    extra = ""
+    if notified_total:
+        extra = f"\n📢 Alertas enviados: <b>{notified_total}</b>"
+
     await message.answer(
-        f"✅ Unidades adicionadas: <b>{added}</b>",
+        f"✅ Unidades adicionadas: <b>{added}</b>{extra}",
         parse_mode="HTML",
         reply_markup=admin_cfg_logins_kb(),
     )
 
 
 @router.callback_query(F.data == "admin:login_remove")
-async def cb_remove(callback: CallbackQuery, state: FSMContext, session: AsyncSession, db_user: User):
+async def cb_remove(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
     sep = await SettingsService.get(session, "separator") or "==="
@@ -178,7 +219,9 @@ async def cb_remove(callback: CallbackQuery, state: FSMContext, session: AsyncSe
 
 
 @router.message(LoginStates.remove_one)
-async def process_remove(message: Message, state: FSMContext, session: AsyncSession, db_user: User):
+async def process_remove(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
     sep = await SettingsService.get(session, "separator") or "==="
@@ -188,7 +231,9 @@ async def process_remove(message: Message, state: FSMContext, session: AsyncSess
         await message.answer(f"❌ Use SERVICO{sep}EMAIL")
         return
     name, email = parts[0], parts[1]
-    result = await session.execute(select(Product).where(func.lower(Product.name) == name.lower()))
+    result = await session.execute(
+        select(Product).where(func.lower(Product.name) == name.lower())
+    )
     product = result.scalar_one_or_none()
     if not product:
         await message.answer("❌ Serviço não encontrado.")
@@ -205,7 +250,9 @@ async def process_remove(message: Message, state: FSMContext, session: AsyncSess
         await session.delete(item)
     product.stock_count = max(0, (product.stock_count or 0) - len(items))
     await message.answer(
-        f"✅ Removidos: <b>{len(items)}</b>", parse_mode="HTML", reply_markup=admin_cfg_logins_kb()
+        f"✅ Removidos: <b>{len(items)}</b>",
+        parse_mode="HTML",
+        reply_markup=admin_cfg_logins_kb(),
     )
 
 
@@ -219,25 +266,32 @@ async def cb_rm_plat(callback: CallbackQuery, state: FSMContext, db_user: User):
 
 
 @router.message(LoginStates.remove_platform)
-async def process_rm_plat(message: Message, state: FSMContext, session: AsyncSession, db_user: User):
+async def process_rm_plat(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
     name = (message.text or "").strip()
     await state.clear()
-    result = await session.execute(select(Product).where(func.lower(Product.name) == name.lower()))
+    result = await session.execute(
+        select(Product).where(func.lower(Product.name) == name.lower())
+    )
     product = result.scalar_one_or_none()
     if not product:
         await message.answer("❌ Não encontrado.")
         return
     result = await session.execute(
-        select(StockItem).where(StockItem.product_id == product.id, StockItem.is_sold.is_(False))
+        select(StockItem).where(
+            StockItem.product_id == product.id, StockItem.is_sold.is_(False)
+        )
     )
     items = list(result.scalars().all())
     for item in items:
         await session.delete(item)
     product.stock_count = 0
     await message.answer(
-        f"✅ Removidos {len(items)} de {product.name}.", reply_markup=admin_cfg_logins_kb()
+        f"✅ Removidos {len(items)} de {product.name}.",
+        reply_markup=admin_cfg_logins_kb(),
     )
 
 
@@ -245,7 +299,9 @@ async def process_rm_plat(message: Message, state: FSMContext, session: AsyncSes
 async def cb_clear(callback: CallbackQuery, session: AsyncSession, db_user: User):
     if not is_admin(db_user):
         return
-    result = await session.execute(select(StockItem).where(StockItem.is_sold.is_(False)))
+    result = await session.execute(
+        select(StockItem).where(StockItem.is_sold.is_(False))
+    )
     items = list(result.scalars().all())
     for item in items:
         await session.delete(item)
@@ -260,17 +316,23 @@ async def cb_clear(callback: CallbackQuery, session: AsyncSession, db_user: User
 
 
 @router.callback_query(F.data == "admin:login_price")
-async def cb_price(callback: CallbackQuery, state: FSMContext, session: AsyncSession, db_user: User):
+async def cb_price(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
     sep = await SettingsService.get(session, "separator") or "==="
     await state.set_state(LoginStates.price_one)
-    await callback.message.edit_text(f"💰 Envie: <code>SERVICO{sep}VALOR</code>", parse_mode="HTML")
+    await callback.message.edit_text(
+        f"💰 Envie: <code>SERVICO{sep}VALOR</code>", parse_mode="HTML"
+    )
     await callback.answer()
 
 
 @router.message(LoginStates.price_one)
-async def process_price(message: Message, state: FSMContext, session: AsyncSession, db_user: User):
+async def process_price(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
     sep = await SettingsService.get(session, "separator") or "==="
@@ -284,7 +346,9 @@ async def process_price(message: Message, state: FSMContext, session: AsyncSessi
     except Exception:
         await message.answer("❌ Valor inválido.")
         return
-    result = await session.execute(select(Product).where(func.lower(Product.name) == parts[0].lower()))
+    result = await session.execute(
+        select(Product).where(func.lower(Product.name) == parts[0].lower())
+    )
     product = result.scalar_one_or_none()
     if not product:
         await message.answer("❌ Serviço não encontrado.")
@@ -307,7 +371,9 @@ async def cb_price_all(callback: CallbackQuery, state: FSMContext, db_user: User
 
 
 @router.message(LoginStates.price_all)
-async def process_price_all(message: Message, state: FSMContext, session: AsyncSession, db_user: User):
+async def process_price_all(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
     try:
@@ -338,7 +404,9 @@ async def cb_stock_view(callback: CallbackQuery, session: AsyncSession, db_user:
         lines = ["📋 <b>ESTOQUE DETALHADO</b>\n"]
         for p in products:
             emoji = "⚠️" if (p.stock_count or 0) <= 5 else "✅"
-            lines.append(f"{emoji} <b>{p.name}</b> — R$ {p.price:.2f} | <b>{p.stock_count}</b>")
+            lines.append(
+                f"{emoji} <b>{p.name}</b> — R$ {p.price:.2f} | <b>{p.stock_count}</b>"
+            )
         text = "\n".join(lines)
     await callback.message.edit_text(
         text, reply_markup=admin_cfg_logins_kb(), parse_mode="HTML"
