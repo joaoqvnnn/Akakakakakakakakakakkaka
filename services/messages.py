@@ -13,10 +13,23 @@ DEFAULT_TEMPLATES: Dict[str, Dict[str, Any]] = {
             "🎬 <b>Bem-vindo à {store_name}!</b> ✨\n"
             "A sua central de streamings com entrega <b>100% automática</b>.\n\n"
             "Pagou, recebeu. Sem filas, 24 horas por dia! ⚡️\n\n"
+            "🛡 <b>Segurança e Suporte:</b>\n"
+            "Mais de 12.000 clientes já passaram por aqui.\n"
+            "Participe da nossa comunidade e veja as referências.\n\n"
             "💠 <b>Seus Dados:</b>\n"
             "├ 👤 ID: <code>{user_id}</code>\n"
             "└ 💰 Saldo Atual: <b>R$ {balance}</b>\n\n"
-            "👇 Clique em <b>Comprar Produtos</b> para ver o catálogo."
+            "👇 <b>COMO COMEÇAR:</b>\n"
+            "Clique no botão <b>\"🛍 Comprar Produtos\"</b> abaixo para ver nosso catálogo!"
+        ),
+    },
+    "catalog": {
+        "title": "Catálogo",
+        "content": (
+            "📱 <b>{store_name} | Catálogo de Serviços</b>\n"
+            "────────────\n\n"
+            "💰 Saldo da Carteira: <b>R$ {balance}</b>\n\n"
+            "⬇️ Selecione uma categoria abaixo:"
         ),
     },
     "payment_approved": {
@@ -32,9 +45,17 @@ DEFAULT_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "title": "PIX expirado",
         "content": (
             "⌛️ <b>PAGAMENTO PIX EXPIRADO</b>\n\n"
-            "⚠️ O tempo limite foi excedido.\n\n"
+            "⚠️ O tempo limite para realizar este pagamento foi excedido.\n\n"
             "🆔 Referência: <code>{payment_id}</code>\n"
             "💸 Valor: <b>R$ {amount}</b>"
+        ),
+    },
+    "pix_not_found": {
+        "title": "PIX ainda não reconhecido",
+        "content": (
+            "⏳ Ainda não reconhecemos o pagamento no sistema.\n\n"
+            "Aguarde alguns segundos e toque em <b>Aguardando pagamento</b> de novo.\n"
+            "Se já pagou, a confirmação costuma ser automática."
         ),
     },
     "purchase_success": {
@@ -48,7 +69,6 @@ DEFAULT_TEMPLATES: Dict[str, Dict[str, Any]] = {
             "📦 Entrega:\n<code>{delivery}</code>"
         ),
     },
-    # ----- Entrega por E-MAIL (editável no admin) -----
     "delivery_email": {
         "title": "Modelo de e-mail da compra",
         "content": (
@@ -68,7 +88,6 @@ DEFAULT_TEMPLATES: Dict[str, Dict[str, Any]] = {
             "Obrigado pela preferência!"
         ),
     },
-    # ----- Entrega por WhatsApp (texto; mídia separada) -----
     "delivery_whatsapp": {
         "title": "Modelo WhatsApp da compra",
         "content": (
@@ -78,8 +97,7 @@ DEFAULT_TEMPLATES: Dict[str, Dict[str, Any]] = {
             "📅 {date}\n"
             "💳 Pagamento: {payment_method}\n"
             "🆔 Pedido: {order_id}\n\n"
-            "Toque no botão protegido no Telegram para ver login e senha.\n"
-            "Ou confira no bot em Meu Perfil → Histórico."
+            "Volte ao *Telegram* e confirme a entrega para liberar login e senha."
         ),
     },
     "delivery_activation_help": {
@@ -89,6 +107,34 @@ DEFAULT_TEMPLATES: Dict[str, Dict[str, Any]] = {
             "2. Entre com o e-mail e a senha enviados.\n"
             "3. Se pedir código, verifique o e-mail da conta.\n"
             "4. Em caso de dúvida, fale com o suporte."
+        ),
+    },
+    "terms": {
+        "title": "Termos de uso",
+        "content": (
+            "📜 <b>Termos de Uso</b>\n\n"
+            "1. Ao comprar, você concorda com as regras da loja.\n"
+            "2. Produtos digitais não possuem reembolso após a entrega.\n"
+            "3. Garantia conforme descrito em cada produto.\n"
+            "4. É proibido revender ou compartilhar acessos indevidamente.\n"
+            "5. Suporte disponível pelo botão Atendimento."
+        ),
+    },
+    "flood_warning": {
+        "title": "Aviso anti-flood",
+        "content": (
+            "⏳ Você está enviando comandos muito rápido.\n"
+            "Aguarde alguns minutos e tente novamente."
+        ),
+    },
+    "insufficient_balance": {
+        "title": "Saldo insuficiente",
+        "content": (
+            "❌ <b>Saldo insuficiente!</b>\n\n"
+            "💰 Seu saldo: <b>R$ {balance}</b>\n"
+            "💵 Valor do produto: <b>R$ {price}</b>\n"
+            "📉 Faltam: <b>R$ {missing}</b>\n\n"
+            "💡 Deseja gerar um PIX no valor de <b>R$ {missing}</b> para completar a compra?"
         ),
     },
 }
