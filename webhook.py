@@ -9,7 +9,6 @@ from web_routes import setup_web_routes
 
 logger = logging.getLogger(__name__)
 payment_service = PaymentService()
-
 _bot = None
 
 
@@ -23,7 +22,6 @@ async def mercadopago_webhook(request: web.Request) -> web.Response:
         data = await request.json()
     except Exception:
         data = dict(request.query)
-
     logger.info("Webhook MP: %s", data)
 
     topic = data.get("type") or data.get("topic") or data.get("action", "")
@@ -34,18 +32,14 @@ async def mercadopago_webhook(request: web.Request) -> web.Response:
         resource_id = data.get("id")
     if not resource_id:
         resource_id = request.query.get("id") or request.query.get("data.id")
-
     if not resource_id:
         return web.Response(text="ok", status=200)
-
     if topic and "payment" not in str(topic).lower():
         return web.Response(text="ignored", status=200)
 
-    gateway_id = str(resource_id)
-
     async with AsyncSessionLocal() as session:
         try:
-            payment = await payment_service.process_webhook(session, gateway_id)
+            payment = await payment_service.process_webhook(session, str(resource_id))
             await session.commit()
             if payment and payment.status == PaymentStatus.APPROVED and _bot:
                 from utils.notify import notify_user_payment_approved
@@ -53,7 +47,6 @@ async def mercadopago_webhook(request: web.Request) -> web.Response:
         except Exception:
             await session.rollback()
             logger.exception("Erro webhook MP")
-
     return web.Response(text="ok", status=200)
 
 
@@ -77,9 +70,8 @@ async def start_webhook_server():
     site = web.TCPSite(runner, settings.WEBHOOK_HOST, settings.WEBHOOK_PORT)
     await site.start()
     logger.info(
-        "HTTP %s:%s | MP %s | web /login /saque /historico",
+        "HTTP %s:%s | MP + /webhook/baileys + site saque",
         settings.WEBHOOK_HOST,
         settings.WEBHOOK_PORT,
-        settings.WEBHOOK_PATH,
     )
     return runner
