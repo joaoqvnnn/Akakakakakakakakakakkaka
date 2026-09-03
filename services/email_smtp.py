@@ -2,7 +2,6 @@ import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,7 +31,6 @@ class EmailService:
         use_tls = await SettingsService.get_bool(session, "smtp_use_tls")
 
         if not host or not from_addr:
-            logger.error("SMTP sem host/from")
             return False
 
         msg = MIMEMultipart()
