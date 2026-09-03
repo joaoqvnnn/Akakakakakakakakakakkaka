@@ -13,8 +13,8 @@ from handlers.client.delivery import router as delivery_router
 from handlers.client.withdraw_pix import router as withdraw_pix_router
 from handlers.client.security import router as security_router
 from handlers.client.points import router as points_router
+from handlers.client.ai_chat import router as ai_router
 from handlers.admin import setup_admin_routers
-
 
 def setup_routers() -> Router:
     root = Router()
@@ -34,4 +34,8 @@ def setup_routers() -> Router:
     root.include_router(points_router)
 
     root.include_router(setup_admin_routers())
+    
+    # AI Chat sempre por último para não roubar mensagens de FSM
+    root.include_router(ai_router)
+    
     return root
