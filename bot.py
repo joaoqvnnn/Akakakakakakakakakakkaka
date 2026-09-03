@@ -1,15 +1,11 @@
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import settings
-from middlewares import (
-    DatabaseMiddleware,
-    UserMiddleware,
-    MaintenanceMiddleware,
-    AntiFloodMiddleware,
-)
+from middlewares.database import DatabaseMiddleware
+from middlewares.user import UserMiddleware
+from middlewares.guards import MaintenanceMiddleware, AntiFloodMiddleware
 from handlers import setup_routers
 
 
@@ -21,14 +17,10 @@ def create_bot() -> Bot:
 
 
 def create_dispatcher() -> Dispatcher:
-    storage = MemoryStorage()
-    dp = Dispatcher(storage=storage)
-
-    # Ordem: banco → usuário → manutenção → anti-flood
+    dp = Dispatcher()
     dp.update.middleware(DatabaseMiddleware())
     dp.update.middleware(UserMiddleware())
     dp.update.middleware(MaintenanceMiddleware())
     dp.update.middleware(AntiFloodMiddleware())
-
     dp.include_router(setup_routers())
     return dp
