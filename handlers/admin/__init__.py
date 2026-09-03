@@ -13,21 +13,32 @@ from handlers.admin.buttons import router as buttons_router
 from handlers.admin.products_media import router as products_media_router
 from handlers.admin.welcome_media import router as welcome_media_router
 from handlers.admin.withdraws import router as withdraws_router
+from handlers.admin.web_password import router as web_password_router
+from handlers.admin.categories import router as categories_router
+from handlers.admin.antiflood_cfg import router as antiflood_router
+from handlers.admin.search_images import router as search_images_router
 
 
 def setup_admin_routers() -> Router:
     router = Router()
-    router.include_router(panel_router)
-    router.include_router(config_router)
-    router.include_router(logins_router)
-    router.include_router(users_router)
-    router.include_router(messages_router)
-    router.include_router(giftcards_router)
-    router.include_router(payments_router)
-    router.include_router(broadcast_router)
-    router.include_router(smtp_router)
-    router.include_router(buttons_router)
-    router.include_router(products_media_router)
-    router.include_router(welcome_media_router)
-    router.include_router(withdraws_router)
+    for r in (
+        panel_router,
+        config_router,
+        logins_router,
+        users_router,
+        messages_router,
+        giftcards_router,
+        payments_router,
+        broadcast_router,
+        smtp_router,
+        buttons_router,
+        products_media_router,
+        welcome_media_router,
+        withdraws_router,
+        web_password_router,
+        categories_router,
+        antiflood_router,
+        search_images_router,
+    ):
+        router.include_router(r)
     return router
