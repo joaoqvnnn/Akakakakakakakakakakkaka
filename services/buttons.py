@@ -6,37 +6,65 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.models import SystemSetting
 
 
-# Textos padrão dos botões (admin pode sobrescrever no banco)
+# Todas as chaves de botão usadas no painel do cliente
 DEFAULT_BUTTONS: Dict[str, str] = {
-    "btn_buy_products": "🛍 Comprar Produtos",
-    "btn_recharge": "💰 Recarregar Saldo",
+    # Menu principal
+    "btn_buy": "🛍 Comprar Produtos",
     "btn_profile": "👤 Meu Perfil",
+    "btn_recharge": "💰 Recarregar Saldo",
     "btn_affiliates": "🤝 Afiliados",
-    "btn_ranking": "🏆 Ranking",
-    "btn_gift": "🎁 Gift Card",
-    "btn_search": "🔎 Pesquisar",
-    "btn_alerts": "📢 Alertas",
+    "btn_ranking": "🏆 Top Compradores",
     "btn_support": "🎧 Atendimento",
     "btn_about": "ℹ️ Sobre o Bot",
+    "btn_search": "🔎 Pesquisar Serviço",
+    "btn_alerts": "📢 Alertas",
+    "btn_gift": "🎁 Gift Card",
+    "btn_back_main": "🏠 Menu",
     "btn_back": "⏮️ Voltar",
-    "btn_back_menu": "🏠 Menu",
-    "btn_buy": "💳 Comprar",
+    # Catálogo / produto
+    "btn_buy_one": "💳 Comprar",
     "btn_buy_multi": "🛒 Comprar mais de um",
-    "btn_confirm_buy": "✅ Confirmar Compra",
-    "btn_cancel": "❌ Cancelar",
-    "btn_generate_pix": "💠 Gerar PIX",
+    "btn_back_catalog": "⏮️ Voltar",
+    "btn_confirm_buy": "✅ Confirmar compra",
+    "btn_cancel_buy": "❌ Cancelar",
+    "btn_generate_pix": "💠 Gerar PIX de R$ {amount}",
+    "btn_cancel_product": "❌ Cancelar produto",
+    # PIX
+    "btn_waiting_payment": "⏳ Aguardando pagamento",
+    "btn_copy_pix": "📋 Copiar PIX",
     "btn_pix_fast": "💠 Pix Rápido",
-    "btn_waiting_pay": "⏳ Aguardando pagamento",
-    "btn_history": "🧾 Histórico de Compras",
-    "btn_edit_data": "✏️ Alterar Dados",
-    "btn_withdraw": "💸 Solicitar Saque",
-    "btn_withdraw_history": "📊 Histórico de Saques",
-    "btn_my_link": "🔗 Meu Link",
-    "btn_email": "📧 Receber por E-mail",
-    "btn_whatsapp": "📲 Receber por WhatsApp",
-    "btn_alert_on": "📢 Ativar Alerta",
-    "btn_out_of_stock": "❌ Sem estoque",
-    "btn_security_pwd": "🔐 Senha de saque",
+    # Perfil
+    "btn_history": "📋 Histórico de compras",
+    "btn_history_all": "📋 Ver todas as compras",
+    "btn_gift_redeem": "🎁 Resgatar Gift Card",
+    "btn_edit_data": "✏️ Alterar dados",
+    "btn_edit_whatsapp": "📱 WhatsApp",
+    "btn_edit_email": "📧 E-mail",
+    "btn_history_prev": "◀️",
+    "btn_history_next": "▶️",
+    "btn_order_email": "📧 Receber por E-mail",
+    "btn_order_whatsapp": "📲 Receber por WhatsApp",
+    "btn_order_telegram": "👁 Mostrar no Telegram",
+    "btn_order_pdf": "📄 PDF",
+    # Afiliados
+    "btn_aff_withdraw": "💸 Solicitar Saque",
+    "btn_aff_history": "📊 Histórico de Saques",
+    "btn_aff_link": "🔗 Meu Link",
+    "btn_aff_convert": "⭐ Converter pontos",
+    # Ranking
+    "btn_rank_products": "🎬 Serviços",
+    "btn_rank_recharges": "💰 Recargas",
+    "btn_rank_balance": "💎 Saldo",
+    "btn_rank_purchases": "🛒 Compras",
+    # PIX expirado / extras
+    "btn_do_recharge": "💰 Fazer recarga",
+    "btn_main_menu": "🏠 Menu principal",
+    # Entrega WhatsApp
+    "btn_wa_confirm": "✅ Confirmar e liberar",
+    "btn_wa_edit_phone": "✏️ Corrigir número",
+    # Alertas
+    "btn_alert_on": "✅",
+    "btn_alert_off": "☑️",
 }
 
 
@@ -44,71 +72,73 @@ class ButtonService:
     PREFIX = "btn_label:"
 
     @staticmethod
-    async def get_label(session: AsyncSession, key: str) -> str:
-        if not key.startswith("btn_"):
-            key = f"btn_{key}" if not key.startswith("btn_") else key
-        db_key = f"{ButtonService.PREFIX}{key}"
+    async def get(session: AsyncSession, key: str, **fmt) -> str:
         result = await session.execute(
-            select(SystemSetting).where(SystemSetting.key == db_key)
+            select(SystemSetting).where(SystemSetting.key == f"{ButtonService.PREFIX}{key}")
         )
         row = result.scalar_one_or_none()
-        if row and row.value:
-            return row.value
-        return DEFAULT_BUTTONS.get(key, key)
+        text = row.value if row and row.value else DEFAULT_BUTTONS.get(key, key)
+        if fmt:
+            try:
+                return text.format(**fmt)
+            except (KeyError, ValueError):
+                return text
+        return text
 
     @staticmethod
-    async def set_label(
-        session: AsyncSession,
-        key: str,
-        label: str,
-        admin_id: Optional[int] = None,
+    async def get_many(session: AsyncSession, keys: List[str]) -> Dict[str, str]:
+        out = {}
+        for k in keys:
+            out[k] = await ButtonService.get(session, k)
+        return out
+
+    @staticmethod
+    async def set(
+        session: AsyncSession, key: str, value: str, admin_id: Optional[int] = None
     ) -> None:
-        if not key.startswith("btn_"):
-            key = f"btn_{key}"
-        db_key = f"{ButtonService.PREFIX}{key}"
+        full = f"{ButtonService.PREFIX}{key}"
         result = await session.execute(
-            select(SystemSetting).where(SystemSetting.key == db_key)
+            select(SystemSetting).where(SystemSetting.key == full)
         )
         row = result.scalar_one_or_none()
         if row:
-            row.value = label
-            row.updated_by = admin_id
+            row.value = value
+            if hasattr(row, "updated_by"):
+                row.updated_by = admin_id
         else:
             session.add(
                 SystemSetting(
-                    key=db_key,
-                    value=label,
-                    value_type="string",
+                    key=full,
+                    value=value,
                     description=f"Label botão {key}",
-                    updated_by=admin_id,
                 )
             )
         await session.flush()
 
     @staticmethod
-    async def list_all(session: AsyncSession) -> List[Dict[str, Any]]:
-        items = []
-        for key, default in DEFAULT_BUTTONS.items():
-            label = await ButtonService.get_label(session, key)
-            items.append(
-                {
-                    "key": key,
-                    "label": label,
-                    "is_custom": label != default,
-                    "default": default,
-                }
-            )
-        return items
-
-    @staticmethod
-    async def reset_label(session: AsyncSession, key: str) -> None:
-        if not key.startswith("btn_"):
-            key = f"btn_{key}"
-        db_key = f"{ButtonService.PREFIX}{key}"
+    async def reset(session: AsyncSession, key: str) -> bool:
+        full = f"{ButtonService.PREFIX}{key}"
         result = await session.execute(
-            select(SystemSetting).where(SystemSetting.key == db_key)
+            select(SystemSetting).where(SystemSetting.key == full)
         )
         row = result.scalar_one_or_none()
         if row:
             await session.delete(row)
             await session.flush()
+            return True
+        return False
+
+    @staticmethod
+    async def list_all(session: AsyncSession) -> List[Dict[str, Any]]:
+        items = []
+        for key, default in sorted(DEFAULT_BUTTONS.items()):
+            current = await ButtonService.get(session, key)
+            items.append(
+                {
+                    "key": key,
+                    "default": default,
+                    "current": current,
+                    "custom": current != default,
+                }
+            )
+        return items
