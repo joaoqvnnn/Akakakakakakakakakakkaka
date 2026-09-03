@@ -6,16 +6,15 @@ from database.session import AsyncSessionLocal
 from database.models import PaymentStatus
 from services.payment import PaymentService
 from web_routes import setup_web_routes
+from handlers.order_web import setup_order_web_routes
 
 logger = logging.getLogger(__name__)
 payment_service = PaymentService()
 _bot = None
 
-
 def set_bot(bot):
     global _bot
     _bot = bot
-
 
 async def mercadopago_webhook(request: web.Request) -> web.Response:
     try:
@@ -49,19 +48,19 @@ async def mercadopago_webhook(request: web.Request) -> web.Response:
             logger.exception("Erro webhook MP")
     return web.Response(text="ok", status=200)
 
-
 async def health_check(request: web.Request) -> web.Response:
     return web.Response(text="ok", status=200)
-
 
 def create_webhook_app() -> web.Application:
     app = web.Application()
     app.router.add_post(settings.WEBHOOK_PATH, mercadopago_webhook)
     app.router.add_get(settings.WEBHOOK_PATH, mercadopago_webhook)
     app.router.add_get("/health", health_check)
-    setup_web_routes(app)
+    
+    setup_web_routes(app)  # isso já tem /webhook/baileys
+    setup_order_web_routes(app)  # adiciona o site de pedido
+    
     return app
-
 
 async def start_webhook_server():
     app = create_webhook_app()
@@ -69,9 +68,5 @@ async def start_webhook_server():
     await runner.setup()
     site = web.TCPSite(runner, settings.WEBHOOK_HOST, settings.WEBHOOK_PORT)
     await site.start()
-    logger.info(
-        "HTTP %s:%s | MP + /webhook/baileys + site saque",
-        settings.WEBHOOK_HOST,
-        settings.WEBHOOK_PORT,
-    )
+    logger.info("HTTP %s:%s rodando", settings.WEBHOOK_HOST, settings.WEBHOOK_PORT)
     return runner
