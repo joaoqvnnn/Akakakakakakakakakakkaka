@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import SystemSetting
 
-
 DEFAULTS: Dict[str, Any] = {
     "store_name": "Larizinha Store",
     "support_link": "https://t.me/suporte",
@@ -47,8 +46,8 @@ DEFAULTS: Dict[str, Any] = {
     "smtp_password": "",
     "smtp_from": "",
     "smtp_use_tls": "true",
+    "web_withdraw_password": "Larizinha@2026",
 }
-
 
 class SettingsService:
     @staticmethod
