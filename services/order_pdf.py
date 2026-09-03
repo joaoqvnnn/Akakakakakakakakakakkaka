@@ -42,17 +42,17 @@ def build_order_pdf(
     line(f"Produto: {product_name}", 12)
     line(f"Valor: R$ {price}")
     line(f"Data/Hora: {date_str}")
-    line(f"Vencimento/período: {expires_str}")
+    line(f"Vencimento/periodo: {expires_str}")
     line(f"Pagamento: {payment_method}")
     line(f"Pedido: {order_uuid}")
     y -= 0.3 * cm
     line("=== DADOS DE ACESSO ===", 12)
-    line(delivery_content or "—")
+    line(delivery_content or "-")
     y -= 0.3 * cm
     line("=== COMO ATIVAR ===", 12)
-    line(activation_help or "Siga as instruções do serviço.")
+    line(activation_help or "Siga as instrucoes do servico.")
     y -= 0.5 * cm
-    line("Documento confidencial. Não compartilhe.", 9)
+    line("Documento confidencial. Nao compartilhe.", 9)
 
     c.showPage()
     c.save()
