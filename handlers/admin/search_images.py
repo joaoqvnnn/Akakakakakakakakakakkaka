@@ -1,8 +1,3 @@
-"""
-Imagens opcionais para resultado da pesquisa de serviços.
-Salva file_id por product_id em settings: search_img:{product_id}
-"""
-
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -23,8 +18,11 @@ class SearchImg(StatesGroup):
 
 
 @router.callback_query(F.data == "admin:cfg_search")
-async def cb_cfg_search(callback: CallbackQuery, session: AsyncSession, db_user: User):
+async def cb_cfg_search(
+    callback: CallbackQuery, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
+        await callback.answer("Acesso negado.", show_alert=True)
         return
     result = await session.execute(
         select(Product)
@@ -55,16 +53,30 @@ async def cb_cfg_search(callback: CallbackQuery, session: AsyncSession, db_user:
 
 
 @router.callback_query(F.data.startswith("admin:search_img:"))
-async def cb_pick(callback: CallbackQuery, state: FSMContext, session: AsyncSession, db_user: User):
+async def cb_pick(
+    callback: CallbackQuery, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
-    pid = int(callback.data.split(":")[2])
+    # evita conflito com admin:search_img_set / del
+    parts = callback.data.split(":")
+    if len(parts) != 3:
+        return
+    pid = int(parts[2])
     key = f"search_img:{pid}"
     has = await SettingsService.get(session, key)
     b = InlineKeyboardBuilder()
-    b.row(InlineKeyboardButton(text="📷 Enviar foto", callback_data=f"admin:search_img_set:{pid}"))
+    b.row(
+        InlineKeyboardButton(
+            text="📷 Enviar foto", callback_data=f"admin:search_img_set:{pid}"
+        )
+    )
     if has:
-        b.row(InlineKeyboardButton(text="🗑 Remover", callback_data=f"admin:search_img_del:{pid}"))
+        b.row(
+            InlineKeyboardButton(
+                text="🗑 Remover", callback_data=f"admin:search_img_del:{pid}"
+            )
+        )
     b.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:cfg_search"))
     await callback.message.edit_text(
         f"Produto ID <code>{pid}</code>\nImagem: {'sim' if has else 'não'}",
@@ -86,7 +98,9 @@ async def cb_set(callback: CallbackQuery, state: FSMContext, db_user: User):
 
 
 @router.message(SearchImg.waiting)
-async def process(message: Message, state: FSMContext, session: AsyncSession, db_user: User):
+async def process(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
     if not message.photo:
@@ -102,7 +116,9 @@ async def process(message: Message, state: FSMContext, session: AsyncSession, db
 
 
 @router.callback_query(F.data.startswith("admin:search_img_del:"))
-async def cb_del(callback: CallbackQuery, session: AsyncSession, db_user: User):
+async def cb_del(
+    callback: CallbackQuery, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
     pid = int(callback.data.split(":")[2])
