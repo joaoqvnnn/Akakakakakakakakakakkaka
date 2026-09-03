@@ -1,8 +1,3 @@
-"""
-Baileys API — texto, imagem e botões interativos.
-Ajuste paths se sua API usar outros endpoints.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -66,11 +61,14 @@ class WhatsAppBaileysService:
 
     @staticmethod
     async def send_text(session: AsyncSession, phone: str, message: str) -> bool:
-        return await WhatsAppBaileysService._post(
-            session,
-            "/send-message",
-            {"number": normalize_phone(phone), "message": message},
-        )
+        number = normalize_phone(phone)
+        for path in ("/send-message", "/send-text", "/message/sendText"):
+            ok = await WhatsAppBaileysService._post(
+                session, path, {"number": number, "phone": number, "message": message, "text": message}
+            )
+            if ok:
+                return True
+        return False
 
     @staticmethod
     async def send_image_with_caption(
@@ -80,20 +78,25 @@ class WhatsAppBaileysService:
         image_url: Optional[str] = None,
         image_base64: Optional[str] = None,
     ) -> bool:
+        number = normalize_phone(phone)
         payload: Dict[str, Any] = {
-            "number": normalize_phone(phone),
+            "number": number,
+            "phone": number,
             "caption": caption,
+            "text": caption,
+            "message": caption,
         }
         if image_url:
             payload["image"] = image_url
             payload["url"] = image_url
+            payload["media"] = image_url
         if image_base64:
             payload["image"] = image_base64
             payload["base64"] = image_base64
-        ok = await WhatsAppBaileysService._post(session, "/send-image", payload)
-        if not ok:
-            return await WhatsAppBaileysService.send_text(session, phone, caption)
-        return True
+        for path in ("/send-image", "/message/sendImage", "/send-media"):
+            if await WhatsAppBaileysService._post(session, path, payload):
+                return True
+        return await WhatsAppBaileysService.send_text(session, phone, caption)
 
     @staticmethod
     async def send_buttons(
@@ -103,31 +106,31 @@ class WhatsAppBaileysService:
         buttons: List[Dict[str, str]],
         footer: str = "Larizinha Store",
     ) -> bool:
-        """
-        buttons: [{"id": "confirm_order:123", "text": "Confirmar"}]
-        Endpoint comum em wrappers Baileys: /send-button ou /send-buttons
-        """
+        number = normalize_phone(phone)
         payload = {
-            "number": normalize_phone(phone),
+            "number": number,
+            "phone": number,
             "message": text,
             "text": text,
             "footer": footer,
             "buttons": [
-                {"id": b["id"], "text": b["text"], "buttonId": b["id"], "buttonText": {"displayText": b["text"]}}
+                {
+                    "id": b["id"],
+                    "text": b["text"],
+                    "buttonId": b["id"],
+                    "buttonText": {"displayText": b["text"]},
+                }
                 for b in buttons
             ],
         }
-        ok = await WhatsAppBaileysService._post(session, "/send-button", payload)
-        if not ok:
-            ok = await WhatsAppBaileysService._post(session, "/send-buttons", payload)
-        if not ok:
-            # fallback texto
-            lines = text + "\n\n"
-            for b in buttons:
-                lines += f"→ {b['text']}\n"
-            lines += "\nResponda CONFIRMAR para continuar."
-            return await WhatsAppBaileysService.send_text(session, phone, lines)
-        return True
+        for path in ("/send-button", "/send-buttons", "/message/sendButtons"):
+            if await WhatsAppBaileysService._post(session, path, payload):
+                return True
+        lines = text + "\n\n"
+        for b in buttons:
+            lines += f"-> {b['text']}\n"
+        lines += "\nResponda CONFIRMAR para continuar."
+        return await WhatsAppBaileysService.send_text(session, phone, lines)
 
     @staticmethod
     async def send_delivery_preview(
@@ -174,9 +177,9 @@ class WhatsAppBaileysService:
         return await WhatsAppBaileysService.send_text(
             session,
             phone,
-            "🔐 *Verificação de segurança*\n\n"
-            "Digite agora a *senha de liberação* cadastrada.\n"
-            "Senha errada = dados do produto *não* serão enviados.\n\n"
+            "🔐 *Verificacao de seguranca*\n\n"
+            "Digite agora a *senha de liberacao* cadastrada no Telegram.\n"
+            "Senha errada = dados do produto *nao* serao enviados.\n\n"
             f"(Pedido #{order_db_id})",
         )
 
@@ -196,5 +199,5 @@ class WhatsAppBaileysService:
         )
         if activation_help:
             msg += f"*Como ativar:*\n{activation_help}\n\n"
-        msg += "Guarde com segurança."
+        msg += "Guarde com seguranca."
         return await WhatsAppBaileysService.send_text(session, phone, msg)
