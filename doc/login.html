@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Acesso seguro | Larizinha Store</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-badge">LS</div>
+        <span>Larizinha Store</span>
+      </div>
+      <button class="theme-toggle" type="button" id="themeBtn">Tema escuro</button>
+    </div>
+
+    <div class="card">
+      <h1>Acesso seguro</h1>
+      <p class="subtitle">
+        Área exclusiva para informar dados bancários do saque de afiliado.
+        Conectada ao bot do Telegram. Digite a senha de acesso para continuar.
+      </p>
+
+      <div id="error" class="alert alert-err" style="display:none;"></div>
+
+      <form id="loginForm">
+        <label for="password">Senha de acesso ao painel de saque</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          placeholder="Digite a senha"
+          autocomplete="current-password"
+          required
+        />
+        <p class="hint">Senha de teste: <strong>Larizinha@2026</strong></p>
+
+        <label for="ref">Código do saque (UUID do Telegram)</label>
+        <input id="ref" name="ref" type="text" placeholder="Cole o código / UUID do saque" />
+
+        <button class="btn" type="submit">Entrar</button>
+      </form>
+    </div>
+
+    <div class="footer">© Larizinha Store · Saque afiliado · Telegram</div>
+  </div>
+
+  <script>
+    const THEME_KEY = "ls_theme";
+    const PASS_KEY = "ls_web_pass_ok";
+    const TEST_PASS = "Larizinha@2026";
+
+    function applyTheme(t) {
+      document.documentElement.setAttribute("data-theme", t);
+      document.getElementById("themeBtn").textContent =
+        t === "dark" ? "Tema claro" : "Tema escuro";
+      localStorage.setItem(THEME_KEY, t);
+    }
+
+    applyTheme(localStorage.getItem(THEME_KEY) || "light");
+    document.getElementById("themeBtn").onclick = () => {
+      const cur = document.documentElement.getAttribute("data-theme");
+      applyTheme(cur === "dark" ? "light" : "dark");
+    };
+
+    // UUID da URL /saque/{uuid}
+    const parts = location.pathname.split("/").filter(Boolean);
+    const uuidFromPath = parts[0] === "saque" ? parts[1] : "";
+    if (uuidFromPath) document.getElementById("ref").value = uuidFromPath;
+
+    document.getElementById("loginForm").onsubmit = (e) => {
+      e.preventDefault();
+      const pwd = document.getElementById("password").value;
+      const ref = document.getElementById("ref").value.trim();
+      const err = document.getElementById("error");
+
+      if (pwd !== TEST_PASS) {
+        err.style.display = "block";
+        err.textContent = "Senha incorreta. Tente novamente.";
+        return;
+      }
+      sessionStorage.setItem(PASS_KEY, "1");
+      if (ref) sessionStorage.setItem("ls_saque_uuid", ref);
+      location.href = ref ? `/saque/${encodeURIComponent(ref)}/form` : "/saque/form";
+    };
+  </script>
+</body>
+</html>
