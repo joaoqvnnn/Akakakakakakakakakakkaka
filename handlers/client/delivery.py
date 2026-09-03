@@ -7,18 +7,106 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from database.models import User, Order, Product
-from keyboards.client import profile_kb, main_menu_kb
+from keyboards.client_dynamic import main_menu_kb, profile_kb
 from services.settings_service import SettingsService
 from services.messages import MessageService
+from services.email_smtp import EmailService
 from services.whatsapp_baileys import WhatsAppBaileysService, normalize_phone
+from services.order_secure_link import OrderSecureService
+from services.buttons import ButtonService
+from utils.validators import is_valid_email
+from utils.phone import normalize_phone_flexible, is_valid_phone_flexible
 
 router = Router(name="delivery")
 
 
 class DeliveryStates(StatesGroup):
+    waiting_email = State()
     waiting_whatsapp = State()
     confirm_whatsapp = State()
     waiting_release_password = State()
+
+
+@router.callback_query(F.data.startswith("order_email:"))
+async def cb_order_email(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession, db_user: User
+):
+    order_id = int(callback.data.split(":")[1])
+    order = await session.get(Order, order_id)
+    if not order or order.user_id != db_user.id:
+        await callback.answer("Pedido não encontrado.", show_alert=True)
+        return
+    await state.set_state(DeliveryStates.waiting_email)
+    await state.update_data(order_id=order_id)
+    hint = f"\nAtual: <code>{db_user.email}</code>" if db_user.email else ""
+    await callback.message.answer(
+        f"📧 Digite o e-mail para receber a compra:{hint}",
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.message(DeliveryStates.waiting_email)
+async def process_order_email(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User
+):
+    email = (message.text or "").strip()
+    data = await state.get_data()
+    await state.clear()
+    if not is_valid_email(email):
+        await message.answer("❌ E-mail inválido.")
+        return
+    order = await session.get(Order, data.get("order_id"))
+    if not order or order.user_id != db_user.id:
+        await message.answer("❌ Pedido não encontrado.")
+        return
+
+    order.delivery_email = email
+    db_user.email = email
+    product = await session.get(Product, order.product_id)
+    product_name = product.name if product else "Produto"
+    store = await SettingsService.get(session, "store_name", settings.STORE_NAME)
+    support = await SettingsService.get(session, "support_link", settings.SUPPORT_LINK)
+    activation = (
+        await MessageService.get_rendered(session, "delivery_activation_help")
+    )["content"]
+    secure_url = OrderSecureService.public_url(order.uuid)
+
+    body = (
+        await MessageService.get_rendered(
+            session,
+            "delivery_email",
+            store_name=store,
+            product_name=product_name,
+            price=f"{order.total_price:.2f}",
+            date=order.created_at.strftime("%d/%m/%Y %H:%M:%S"),
+            payment_method=order.payment_method.value,
+            order_id=order.uuid,
+            delivery=(
+                "Por segurança o login não vai em texto no e-mail.\n"
+                f"Abra o link e digite sua senha:\n{secure_url}"
+            ),
+            activation_help=activation,
+            support_link=support,
+        )
+    )["content"]
+    body += f"\n\nVencimento: {order.expires_at.strftime('%d/%m/%Y') if order.expires_at else '—'}"
+    body += f"\nAcessar pedido: {secure_url}"
+
+    sent = await EmailService.send(
+        session, email, f"Compra — {product_name} | {store}", body
+    )
+    kb = await profile_kb(session)
+    await message.answer(
+        (
+            f"✅ E-mail enviado para <code>{email}</code>\n"
+            if sent
+            else f"📧 Salvo (SMTP off).\n"
+        )
+        + f"🔗 {secure_url}",
+        parse_mode="HTML",
+        reply_markup=kb,
+    )
 
 
 @router.callback_query(F.data.startswith("order_whatsapp:"))
@@ -39,7 +127,7 @@ async def cb_order_whatsapp(
             f"Envie outro ou digite <code>ok</code>."
         )
     await callback.message.answer(
-        f"📲 WhatsApp (DDI+DDD+número):{hint}",
+        f"📲 WhatsApp (qualquer formato):{hint}",
         parse_mode="HTML",
     )
     await callback.answer()
@@ -60,14 +148,13 @@ async def process_whatsapp_number(
     if raw.lower() == "ok" and db_user.whatsapp:
         phone = db_user.whatsapp
     else:
-        phone = normalize_phone(raw)
-        if len(phone) < 12:
-            await message.answer("❌ Número inválido. Ex: 5544999999999")
+        if not is_valid_phone_flexible(raw):
+            await message.answer("❌ Número inválido.")
             return
+        phone = normalize_phone_flexible(raw)
 
     order.delivery_whatsapp = phone
     db_user.whatsapp = phone
-    await state.update_data(order_id=order.id, phone=phone)
 
     product = await session.get(Product, order.product_id)
     product_name = product.name if product else "Produto"
@@ -101,27 +188,26 @@ async def process_whatsapp_number(
         order_db_id=order.id,
     )
 
-    # backup no Telegram (se Baileys falhar botões)
     await state.set_state(DeliveryStates.confirm_whatsapp)
+    await state.update_data(order_id=order.id, phone=phone)
+
+    conf = await ButtonService.get(session, "btn_wa_confirm")
+    edit = await ButtonService.get(session, "btn_wa_edit_phone")
+    cancel = await ButtonService.get(session, "btn_cancel_buy")
     b = InlineKeyboardBuilder()
     b.row(
-        InlineKeyboardButton(
-            text="✅ Confirmar e liberar (Telegram)",
-            callback_data=f"wa_confirm:{order.id}",
-        )
+        InlineKeyboardButton(text=conf, callback_data=f"wa_confirm:{order.id}")
     )
     b.row(
-        InlineKeyboardButton(
-            text="✏️ Corrigir número", callback_data=f"wa_edit_phone:{order.id}"
-        )
+        InlineKeyboardButton(text=edit, callback_data=f"wa_edit_phone:{order.id}")
     )
-    b.row(InlineKeyboardButton(text="❌ Cancelar", callback_data="main_menu"))
+    b.row(InlineKeyboardButton(text=cancel, callback_data="main_menu"))
 
     status = (
-        "✅ WhatsApp: resumo + botão *Confirmar* enviados.\n"
-        "No WhatsApp: toque em Confirmar → digite a senha de liberação."
+        "✅ WhatsApp: resumo + botão Confirmar enviados.\n"
+        "No WA: Confirmar → digite a senha."
         if sent
-        else "⚠️ Baileys offline. Você ainda pode confirmar pelo Telegram."
+        else "⚠️ Baileys offline. Confirme pelo Telegram."
     )
     await message.answer(
         f"{status}\n\nNúmero: <code>{phone}</code>\nProduto: <b>{product_name}</b>",
@@ -162,9 +248,10 @@ async def cb_wa_confirm(
 
     ok = await _release_to_whatsapp(session, order)
     await state.clear()
+    kb = await main_menu_kb(session)
     await callback.message.answer(
-        "✅ Acesso enviado no WhatsApp." if ok else "⚠️ Falha no WhatsApp. Veja o Histórico.",
-        reply_markup=main_menu_kb(),
+        "✅ Acesso enviado no WhatsApp." if ok else "⚠️ Falha no WhatsApp.",
+        reply_markup=kb,
     )
     await callback.answer()
 
@@ -179,24 +266,29 @@ async def process_release_password(
     if not order or order.user_id != db_user.id:
         await message.answer("❌ Pedido não encontrado.")
         return
+
     expected = await SettingsService.get(session, "delivery_password")
-    if (message.text or "").strip() != expected:
+    fallback_ok = OrderSecureService.check_user_password(
+        db_user, (message.text or "").strip(), expected or "1234"
+    )
+    if not fallback_ok and (message.text or "").strip() != expected:
+        kb = await main_menu_kb(session)
         await message.answer(
-            "❌ Senha incorreta. Produto não liberado.",
-            reply_markup=main_menu_kb(),
+            "❌ Senha incorreta. Produto não liberado.", reply_markup=kb
         )
         return
+
     ok = await _release_to_whatsapp(session, order)
+    kb = await main_menu_kb(session)
     if ok:
         await message.answer(
-            "✅ Senha correta. Login enviado no WhatsApp.",
-            reply_markup=main_menu_kb(),
+            "✅ Senha correta. Login enviado no WhatsApp.", reply_markup=kb
         )
     else:
         await message.answer(
             f"✅ Senha correta.\n<code>{order.delivery_content or '—'}</code>",
             parse_mode="HTML",
-            reply_markup=main_menu_kb(),
+            reply_markup=kb,
         )
 
 
@@ -205,9 +297,9 @@ async def _release_to_whatsapp(session: AsyncSession, order: Order) -> bool:
     product_name = product.name if product else "Produto"
     if not order.delivery_whatsapp:
         return False
-    activation = (await MessageService.get_rendered(session, "delivery_activation_help"))[
-        "content"
-    ]
+    activation = (
+        await MessageService.get_rendered(session, "delivery_activation_help")
+    )["content"]
     return await WhatsAppBaileysService.send_credentials(
         session,
         order.delivery_whatsapp,
@@ -217,19 +309,34 @@ async def _release_to_whatsapp(session: AsyncSession, order: Order) -> bool:
     )
 
 
-@router.callback_query(F.data.startswith("order_pdf:"))
-async def cb_order_pdf(callback: CallbackQuery, session: AsyncSession, db_user: User):
+@router.callback_query(F.data.startswith("order_show:"))
+async def cb_order_show(
+    callback: CallbackQuery, session: AsyncSession, db_user: User
+):
     order_id = int(callback.data.split(":")[1])
     order = await session.get(Order, order_id)
     if not order or order.user_id != db_user.id:
         await callback.answer("Pedido não encontrado.", show_alert=True)
         return
     await callback.message.answer(
-        f"📄 <b>Comprovante</b>\n"
-        f"ID: <code>{order.uuid}</code>\n"
-        f"Valor: R$ {order.total_price:.2f}\n"
-        f"Data: {order.created_at.strftime('%d/%m/%Y %H:%M:%S')}\n\n"
+        f"👁 <b>Dados no Telegram</b>\n\n"
         f"<code>{order.delivery_content or '—'}</code>",
         parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("order_pdf:"))
+async def cb_order_pdf(
+    callback: CallbackQuery, session: AsyncSession, db_user: User
+):
+    order_id = int(callback.data.split(":")[1])
+    order = await session.get(Order, order_id)
+    if not order or order.user_id != db_user.id:
+        await callback.answer("Pedido não encontrado.", show_alert=True)
+        return
+    url = OrderSecureService.public_url(order.uuid)
+    await callback.message.answer(
+        f"📄 Abra o link seguro, digite a senha e baixe o PDF:\n{url}"
     )
     await callback.answer()
