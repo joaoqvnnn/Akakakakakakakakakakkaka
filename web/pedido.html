@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pedido seguro | Larizinha Store</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-badge">LS</div>
+        <span>Acesso ao pedido</span>
+      </div>
+      <button class="theme-toggle" type="button" id="themeBtn">Tema escuro</button>
+    </div>
+
+    <div class="card">
+      <h1>Compra realizada com sucesso</h1>
+      <p class="subtitle" id="summary">Carregando dados do pedido…</p>
+
+      <div id="msg" class="alert" style="display:none;"></div>
+
+      <form id="unlockForm">
+        <label for="password">Senha de segurança (a mesma do Telegram)</label>
+        <input
+          id="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="••••••••"
+          required
+        />
+        <p class="hint">A senha não fica visível enquanto você digita.</p>
+        <button class="btn" type="submit">Entrar e ver acesso (PDF)</button>
+      </form>
+    </div>
+    <div class="footer">Área segura · Larizinha Store</div>
+  </div>
+
+  <script>
+    const THEME_KEY = "ls_theme";
+    function applyTheme(t) {
+      document.documentElement.setAttribute("data-theme", t);
+      document.getElementById("themeBtn").textContent =
+        t === "dark" ? "Tema claro" : "Tema escuro";
+      localStorage.setItem(THEME_KEY, t);
+    }
+    applyTheme(localStorage.getItem(THEME_KEY) || "light");
+    document.getElementById("themeBtn").onclick = () => {
+      const cur = document.documentElement.getAttribute("data-theme");
+      applyTheme(cur === "dark" ? "light" : "dark");
+    };
+
+    const parts = location.pathname.split("/").filter(Boolean);
+    const orderUuid = parts[1] || "";
+    const token = new URLSearchParams(location.search).get("t") || "";
+
+    async function loadMeta() {
+      try {
+        const r = await fetch(
+          `/api/pedido/${encodeURIComponent(orderUuid)}?t=${encodeURIComponent(token)}`
+        );
+        const data = await r.json();
+        if (!data.ok) {
+          document.getElementById("summary").textContent =
+            data.error || "Pedido inválido ou link expirado.";
+          document.getElementById("unlockForm").style.display = "none";
+          return;
+        }
+        document.getElementById("summary").innerHTML =
+          `<b>${data.product_name}</b><br/>` +
+          `Valor: R$ ${data.price}<br/>` +
+          `Data: ${data.date}<br/>` +
+          `Vencimento: ${data.expires}<br/>` +
+          `Pagamento: ${data.payment_method}`;
+      } catch (e) {
+        document.getElementById("summary").textContent = "API offline.";
+      }
+    }
+    loadMeta();
+
+    document.getElementById("unlockForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById("msg");
+      const password = document.getElementById("password").value;
+      try {
+        const r = await fetch(`/api/pedido/${encodeURIComponent(orderUuid)}/unlock`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ t: token, password }),
+        });
+        if (r.headers.get("content-type")?.includes("application/pdf")) {
+          const blob = await r.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `pedido-${orderUuid}.pdf`;
+          a.click();
+          msg.className = "alert alert-ok";
+          msg.style.display = "block";
+          msg.textContent = "PDF liberado. Download iniciado.";
+          return;
+        }
+        const data = await r.json();
+        msg.className = "alert alert-err";
+        msg.style.display = "block";
+        msg.textContent = data.error || "Senha incorreta.";
+      } catch (err) {
+        msg.className = "alert alert-err";
+        msg.style.display = "block";
+        msg.textContent = "Falha de conexão.";
+      }
+    };
+  </script>
+</body>
+</html>
