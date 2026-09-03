@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.models import User
 from services.affiliate import AffiliateService
 from services.settings_service import SettingsService
-from keyboards.client import main_menu_kb
+from services.buttons import ButtonService
+from keyboards.client_dynamic import main_menu_kb
 
 router = Router(name="points")
 
@@ -22,6 +23,9 @@ async def cb_convert_points(
     except Exception:
         preview = 0.0
 
+    convert = await ButtonService.get(session, "btn_aff_convert")
+    back = await ButtonService.get(session, "btn_back")
+
     text = (
         f"⭐ <b>Converter pontos</b>\n\n"
         f"Seus pontos: <b>{db_user.affiliate_points}</b>\n"
@@ -33,11 +37,11 @@ async def cb_convert_points(
     if db_user.affiliate_points >= min_pts and min_pts > 0:
         b.row(
             InlineKeyboardButton(
-                text="✅ Converter agora",
+                text=f"✅ {convert}",
                 callback_data="affiliate_do_convert",
             )
         )
-    b.row(InlineKeyboardButton(text="⏮️ Voltar", callback_data="affiliates"))
+    b.row(InlineKeyboardButton(text=back, callback_data="affiliates"))
     await callback.message.edit_text(
         text, reply_markup=b.as_markup(), parse_mode="HTML"
     )
@@ -53,10 +57,11 @@ async def cb_do_convert(
             session, db_user.id
         )
         await session.refresh(db_user)
+        kb = await main_menu_kb(session)
         await callback.message.edit_text(
             f"✅ Convertido! Você recebeu <b>R$ {amount:.2f}</b> no saldo.\n"
             f"💰 Saldo atual: <b>R$ {db_user.balance:.2f}</b>",
-            reply_markup=main_menu_kb(),
+            reply_markup=kb,
             parse_mode="HTML",
         )
         await callback.answer()
