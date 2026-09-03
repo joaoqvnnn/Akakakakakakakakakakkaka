@@ -1,13 +1,15 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import User, Payment, PaymentStatus
 from handlers.admin.panel import is_admin
-from keyboards.admin import admin_payments_kb, admin_back_kb
+from keyboards.admin import admin_payments_kb
 
 router = Router(name="admin_payments")
+
 
 STATUS_MAP = {
     "approved": PaymentStatus.APPROVED,
@@ -18,7 +20,7 @@ STATUS_MAP = {
 
 
 @router.callback_query(F.data.startswith("admin:payments:"))
-async def cb_payments_list(callback: CallbackQuery, session: AsyncSession, db_user: User):
+async def cb_list(callback: CallbackQuery, session: AsyncSession, db_user: User):
     if not is_admin(db_user):
         await callback.answer("Acesso negado.", show_alert=True)
         return
@@ -33,18 +35,26 @@ async def cb_payments_list(callback: CallbackQuery, session: AsyncSession, db_us
         select(Payment)
         .where(Payment.status == status)
         .order_by(Payment.created_at.desc())
-        .limit(15)
+        .limit(20)
     )
-    payments = list(result.scalars().all())
+    items = list(result.scalars().all())
 
-    if not payments:
-        text = f"Nenhum pagamento <b>{key}</b>."
+    title = {
+        "approved": "🟢 Aprovados",
+        "pending": "🟡 Pendentes",
+        "expired": "🔴 Expirados",
+        "cancelled": "⚠️ Cancelados",
+    }.get(key, key)
+
+    if not items:
+        text = f"{title}\n\nNenhum pagamento."
     else:
-        lines = [f"💳 <b>Pagamentos — {key}</b>\n"]
-        for p in payments:
+        lines = [f"{title}\n"]
+        for p in items:
+            dt = p.created_at.strftime("%d/%m %H:%M") if p.created_at else "—"
             lines.append(
-                f"#{p.id} | user <code>{p.user_id}</code> | "
-                f"R$ {p.amount:.2f} | {p.created_at.strftime('%d/%m %H:%M')}"
+                f"• <code>{p.uuid[:8]}</code> | user {p.user_id} | "
+                f"R$ {p.amount:.2f} | {dt}"
             )
         text = "\n".join(lines)
 
