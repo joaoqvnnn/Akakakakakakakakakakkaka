@@ -1,7 +1,3 @@
-"""
-Estado do fluxo WhatsApp: após Confirmar, espera senha por telefone.
-"""
-
 from __future__ import annotations
 
 from typing import Dict, Optional
@@ -18,24 +14,19 @@ class WaPending:
 
 
 class WhatsAppOrderFlow:
-    # phone normalizado -> pendência
     _pending: Dict[str, WaPending] = {}
-    TTL = 15 * 60  # 15 min
+    TTL = 15 * 60
 
     @classmethod
     def set_pending(cls, phone: str, order_id: int, user_id: int) -> None:
         digits = "".join(c for c in phone if c.isdigit())
         cls._pending[digits] = WaPending(
-            order_id=order_id,
-            user_id=user_id,
-            phone=digits,
-            created_at=time.time(),
+            order_id=order_id, user_id=user_id, phone=digits, created_at=time.time()
         )
 
     @classmethod
     def pop_pending(cls, phone: str) -> Optional[WaPending]:
         digits = "".join(c for c in phone if c.isdigit())
-        # tenta com e sem 55
         for key in (digits, digits[2:] if digits.startswith("55") else "55" + digits):
             item = cls._pending.get(key)
             if item:
