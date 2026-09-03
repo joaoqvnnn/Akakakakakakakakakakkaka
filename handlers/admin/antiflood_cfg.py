@@ -21,6 +21,7 @@ class FloodStates(StatesGroup):
 @router.callback_query(F.data == "admin:cfg_flood")
 async def cb_flood(callback: CallbackQuery, session: AsyncSession, db_user: User):
     if not is_admin(db_user):
+        await callback.answer("Acesso negado.", show_alert=True)
         return
     max_c = await SettingsService.get(session, "flood_max_commands")
     window = await SettingsService.get(session, "flood_window_seconds")
@@ -36,7 +37,9 @@ async def cb_flood(callback: CallbackQuery, session: AsyncSession, db_user: User
     b.row(InlineKeyboardButton(text="Janela (seg)", callback_data="admin:flood_window"))
     b.row(InlineKeyboardButton(text="Bloqueio (min)", callback_data="admin:flood_block"))
     b.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:cfg"))
-    await callback.message.edit_text(text, reply_markup=b.as_markup(), parse_mode="HTML")
+    await callback.message.edit_text(
+        text, reply_markup=b.as_markup(), parse_mode="HTML"
+    )
     await callback.answer()
 
 
@@ -50,10 +53,14 @@ async def cb_max(callback: CallbackQuery, state: FSMContext, db_user: User):
 
 
 @router.message(FloodStates.max_commands)
-async def p_max(message: Message, state: FSMContext, session: AsyncSession, db_user: User):
+async def p_max(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
-    await SettingsService.set(session, "flood_max_commands", (message.text or "").strip(), db_user.id)
+    await SettingsService.set(
+        session, "flood_max_commands", (message.text or "").strip(), db_user.id
+    )
     await state.clear()
     await message.answer("✅ Salvo.")
 
@@ -68,10 +75,14 @@ async def cb_win(callback: CallbackQuery, state: FSMContext, db_user: User):
 
 
 @router.message(FloodStates.window)
-async def p_win(message: Message, state: FSMContext, session: AsyncSession, db_user: User):
+async def p_win(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
-    await SettingsService.set(session, "flood_window_seconds", (message.text or "").strip(), db_user.id)
+    await SettingsService.set(
+        session, "flood_window_seconds", (message.text or "").strip(), db_user.id
+    )
     await state.clear()
     await message.answer("✅ Salvo.")
 
@@ -86,9 +97,13 @@ async def cb_block(callback: CallbackQuery, state: FSMContext, db_user: User):
 
 
 @router.message(FloodStates.block_minutes)
-async def p_block(message: Message, state: FSMContext, session: AsyncSession, db_user: User):
+async def p_block(
+    message: Message, state: FSMContext, session: AsyncSession, db_user: User
+):
     if not is_admin(db_user):
         return
-    await SettingsService.set(session, "flood_block_minutes", (message.text or "").strip(), db_user.id)
+    await SettingsService.set(
+        session, "flood_block_minutes", (message.text or "").strip(), db_user.id
+    )
     await state.clear()
     await message.answer("✅ Salvo.")
