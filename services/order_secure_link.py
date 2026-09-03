@@ -1,7 +1,5 @@
 import hashlib
 import hmac
-import secrets
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import select
@@ -49,4 +47,4 @@ class OrderSecureService:
         if user.withdraw_password_hash:
             h = hashlib.sha256(password.encode("utf-8")).hexdigest()
             return h == user.withdraw_password_hash
-        return password == fallback
+        return password == (fallback or "")
