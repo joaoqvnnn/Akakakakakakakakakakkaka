@@ -45,6 +45,12 @@ def admin_config_kb() -> InlineKeyboardMarkup:
     builder.row(
         InlineKeyboardButton(text="🎨 Mensagens", callback_data="admin:messages")
     )
+    builder.row(
+        InlineKeyboardButton(text="🔘 Editor de Botões", callback_data="admin:buttons")
+    )
+    builder.row(
+        InlineKeyboardButton(text="🖼 Imagens de Produtos", callback_data="admin:product_images")
+    )
     builder.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:main"))
     return builder.as_markup()
 
