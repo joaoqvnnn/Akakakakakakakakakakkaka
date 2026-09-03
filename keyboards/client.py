@@ -197,6 +197,9 @@ def affiliates_kb(can_withdraw: bool = False) -> InlineKeyboardMarkup:
             )
         )
     builder.row(
+        InlineKeyboardButton(text="⭐ Converter pontos", callback_data="affiliate_convert_points")
+    )
+    builder.row(
         InlineKeyboardButton(text="📊 Histórico de Saques", callback_data="affiliate_history")
     )
     builder.row(
