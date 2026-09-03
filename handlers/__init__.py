@@ -32,10 +32,9 @@ def setup_routers() -> Router:
     root.include_router(withdraw_pix_router)
     root.include_router(security_router)
     root.include_router(points_router)
-
     root.include_router(setup_admin_routers())
     
-    # AI Chat sempre por último para não roubar mensagens de FSM
+    # AI sempre por último
     root.include_router(ai_router)
     
     return root
