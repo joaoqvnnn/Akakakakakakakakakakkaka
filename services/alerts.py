@@ -1,129 +1,99 @@
-from datetime import datetime, timezone
-from typing import List
+from typing import Optional
 
 from aiogram import Bot
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import ProductAlert, Product
+from database.models import Product, StockAlert
 
 
 class AlertService:
-    """Alertas quando o estoque de um produto é abastecido."""
-
     @staticmethod
     async def toggle_alert(
-        session: AsyncSession,
-        user_id: int,
-        product_id: int,
+        session: AsyncSession, user_id: int, product_id: int
     ) -> bool:
-        """Ativa/desativa. Retorna True se ficou ativo."""
+        """Ativa/desativa alerta. Retorna True se ficou ativo."""
         result = await session.execute(
-            select(ProductAlert).where(
-                ProductAlert.user_id == user_id,
-                ProductAlert.product_id == product_id,
+            select(StockAlert).where(
+                StockAlert.user_id == user_id,
+                StockAlert.product_id == product_id,
             )
         )
-        alert = result.scalar_one_or_none()
-
-        if alert:
-            alert.is_active = not alert.is_active
-            if alert.is_active:
-                alert.notified_at = None
+        row = result.scalar_one_or_none()
+        if row:
+            row.is_active = not row.is_active
             await session.flush()
-            return alert.is_active
+            return row.is_active
 
-        alert = ProductAlert(
-            user_id=user_id,
-            product_id=product_id,
-            is_active=True,
-        )
-        session.add(alert)
+        row = StockAlert(user_id=user_id, product_id=product_id, is_active=True)
+        session.add(row)
         await session.flush()
         return True
 
     @staticmethod
-    async def get_user_alerts(
-        session: AsyncSession,
-        user_id: int,
-    ) -> List[ProductAlert]:
+    async def list_active_map(session: AsyncSession, user_id: int) -> dict:
         result = await session.execute(
-            select(ProductAlert)
-            .where(ProductAlert.user_id == user_id)
-            .order_by(ProductAlert.id)
-        )
-        return list(result.scalars().all())
-
-    @staticmethod
-    async def get_active_subscribers(
-        session: AsyncSession,
-        product_id: int,
-    ) -> List[int]:
-        result = await session.execute(
-            select(ProductAlert.user_id).where(
-                ProductAlert.product_id == product_id,
-                ProductAlert.is_active.is_(True),
+            select(StockAlert).where(
+                StockAlert.user_id == user_id,
+                StockAlert.is_active.is_(True),
             )
         )
-        return list(result.scalars().all())
+        return {a.product_id: True for a in result.scalars().all()}
 
     @staticmethod
     async def notify_restock(
         session: AsyncSession,
         bot: Bot,
         product_id: int,
-        added_quantity: int,
+        added: int = 1,
     ) -> int:
         product = await session.get(Product, product_id)
         if not product:
             return 0
 
-        user_ids = await AlertService.get_active_subscribers(session, product_id)
-        if not user_ids:
+        result = await session.execute(
+            select(StockAlert).where(
+                StockAlert.product_id == product_id,
+                StockAlert.is_active.is_(True),
+            )
+        )
+        alerts = list(result.scalars().all())
+        if not alerts:
             return 0
 
+        builder = InlineKeyboardBuilder()
+        builder.row(
+            InlineKeyboardButton(
+                text="💳 Comprar agora",
+                callback_data=f"product:{product_id}",
+            )
+        )
+        builder.row(
+            InlineKeyboardButton(text="🏠 Menu", callback_data="main_menu")
+        )
+        kb = builder.as_markup()
+
         text = (
-            f"🔥 <b>PRODUTO REABASTECIDO!</b>\n\n"
+            f"📢 <b>Estoque abastecido!</b>\n\n"
             f"{product.emoji} <b>{product.name}</b>\n"
-            f"📦 Novas unidades: <b>{added_quantity}</b>\n"
-            f"📦 Estoque atual: <b>{product.stock_count}</b>\n\n"
+            f"📦 Entraram <b>{added}</b> unidade(s)\n"
+            f"📦 Estoque atual: <b>{product.stock_count}</b>\n"
+            f"💵 Preço: <b>R$ {product.price:.2f}</b>\n\n"
             f"Corra antes que acabe!"
         )
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="💳 Ver produto",
-                        callback_data=f"product:{product_id}",
-                    )
-                ]
-            ]
-        )
 
-        notified = 0
-        now = datetime.now(timezone.utc)
-
-        for uid in user_ids:
+        sent = 0
+        for alert in alerts:
             try:
                 await bot.send_message(
-                    chat_id=uid,
-                    text=text,
+                    alert.user_id,
+                    text,
                     reply_markup=kb,
                     parse_mode="HTML",
                 )
-                notified += 1
-                result = await session.execute(
-                    select(ProductAlert).where(
-                        ProductAlert.user_id == uid,
-                        ProductAlert.product_id == product_id,
-                    )
-                )
-                alert = result.scalar_one_or_none()
-                if alert:
-                    alert.notified_at = now
+                sent += 1
             except Exception:
                 continue
-
-        await session.flush()
-        return notified
+        return sent
