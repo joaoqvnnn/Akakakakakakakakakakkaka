@@ -21,7 +21,7 @@ class SmtpStates(StatesGroup):
 
 
 @router.callback_query(F.data == "admin:cfg_smtp")
-async def cb_cfg_smtp(callback: CallbackQuery, session: AsyncSession, db_user: User):
+async def cb_smtp(callback: CallbackQuery, session: AsyncSession, db_user: User):
     if not is_admin(db_user):
         await callback.answer("Acesso negado.", show_alert=True)
         return
@@ -30,22 +30,22 @@ async def cb_cfg_smtp(callback: CallbackQuery, session: AsyncSession, db_user: U
     host = await SettingsService.get(session, "smtp_host")
     port = await SettingsService.get(session, "smtp_port")
     user = await SettingsService.get(session, "smtp_user")
-    from_addr = await SettingsService.get(session, "smtp_from")
+    frm = await SettingsService.get(session, "smtp_from")
+    tls = await SettingsService.get_bool(session, "smtp_use_tls")
 
     text = (
-        f"<b>E-MAIL SMTP (entrega da compra)</b>\n\n"
-        f"Status: <b>{'ON 🟢' if enabled else 'OFF 🔴'}</b>\n"
+        f"📧 <b>E-MAIL SMTP</b>\n\n"
+        f"Status: <b>{'ON' if enabled else 'OFF'}</b>\n"
         f"Host: <code>{host or '—'}</code>\n"
-        f"Porta: <code>{port}</code>\n"
+        f"Porta: <code>{port or '—'}</code>\n"
         f"User: <code>{user or '—'}</code>\n"
-        f"From: <code>{from_addr or '—'}</code>\n\n"
-        f"Quando ativo, o bot envia o modelo "
-        f"<code>delivery_email</code> para o cliente."
+        f"From: <code>{frm or '—'}</code>\n"
+        f"TLS: <b>{'sim' if tls else 'não'}</b>"
     )
     b = InlineKeyboardBuilder()
     b.row(
         InlineKeyboardButton(
-            text=f"SMTP ({'ON' if enabled else 'OFF'})",
+            text=f"{'🔴 Desativar' if enabled else '🟢 Ativar'}",
             callback_data="admin:smtp_toggle",
         )
     )
@@ -53,19 +53,34 @@ async def cb_cfg_smtp(callback: CallbackQuery, session: AsyncSession, db_user: U
     b.row(InlineKeyboardButton(text="Porta", callback_data="admin:smtp_port"))
     b.row(InlineKeyboardButton(text="Usuário", callback_data="admin:smtp_user"))
     b.row(InlineKeyboardButton(text="Senha", callback_data="admin:smtp_password"))
-    b.row(InlineKeyboardButton(text="From (remetente)", callback_data="admin:smtp_from"))
+    b.row(InlineKeyboardButton(text="From", callback_data="admin:smtp_from"))
+    b.row(
+        InlineKeyboardButton(
+            text=f"TLS ({'ON' if tls else 'OFF'})",
+            callback_data="admin:smtp_tls",
+        )
+    )
     b.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:cfg"))
     await callback.message.edit_text(text, reply_markup=b.as_markup(), parse_mode="HTML")
     await callback.answer()
 
 
 @router.callback_query(F.data == "admin:smtp_toggle")
-async def cb_smtp_toggle(callback: CallbackQuery, session: AsyncSession, db_user: User):
+async def cb_toggle(callback: CallbackQuery, session: AsyncSession, db_user: User):
     if not is_admin(db_user):
         return
     cur = await SettingsService.get_bool(session, "smtp_enabled")
-    await SettingsService.set(session, "smtp_enabled", "false" if cur else "true", db_user.id)
-    await cb_cfg_smtp(callback, session, db_user)
+    await SettingsService.set(session, "smtp_enabled", "0" if cur else "1", db_user.id)
+    await cb_smtp(callback, session, db_user)
+
+
+@router.callback_query(F.data == "admin:smtp_tls")
+async def cb_tls(callback: CallbackQuery, session: AsyncSession, db_user: User):
+    if not is_admin(db_user):
+        return
+    cur = await SettingsService.get_bool(session, "smtp_use_tls")
+    await SettingsService.set(session, "smtp_use_tls", "0" if cur else "1", db_user.id)
+    await cb_smtp(callback, session, db_user)
 
 
 @router.callback_query(F.data == "admin:smtp_host")
@@ -73,7 +88,7 @@ async def cb_host(callback: CallbackQuery, state: FSMContext, db_user: User):
     if not is_admin(db_user):
         return
     await state.set_state(SmtpStates.host)
-    await callback.message.edit_text("Envie o host SMTP (ex: smtp.gmail.com):")
+    await callback.message.edit_text("Host SMTP (ex: smtp.gmail.com):")
     await callback.answer()
 
 
@@ -91,7 +106,7 @@ async def cb_port(callback: CallbackQuery, state: FSMContext, db_user: User):
     if not is_admin(db_user):
         return
     await state.set_state(SmtpStates.port)
-    await callback.message.edit_text("Envie a porta (ex: 587):")
+    await callback.message.edit_text("Porta (ex: 587):")
     await callback.answer()
 
 
@@ -109,7 +124,7 @@ async def cb_user(callback: CallbackQuery, state: FSMContext, db_user: User):
     if not is_admin(db_user):
         return
     await state.set_state(SmtpStates.user)
-    await callback.message.edit_text("Envie o usuário SMTP:")
+    await callback.message.edit_text("Usuário SMTP:")
     await callback.answer()
 
 
@@ -123,16 +138,16 @@ async def p_user(message: Message, state: FSMContext, session: AsyncSession, db_
 
 
 @router.callback_query(F.data == "admin:smtp_password")
-async def cb_pass(callback: CallbackQuery, state: FSMContext, db_user: User):
+async def cb_password(callback: CallbackQuery, state: FSMContext, db_user: User):
     if not is_admin(db_user):
         return
     await state.set_state(SmtpStates.password)
-    await callback.message.edit_text("Envie a senha SMTP:")
+    await callback.message.edit_text("Senha SMTP:")
     await callback.answer()
 
 
 @router.message(SmtpStates.password)
-async def p_pass(message: Message, state: FSMContext, session: AsyncSession, db_user: User):
+async def p_password(message: Message, state: FSMContext, session: AsyncSession, db_user: User):
     if not is_admin(db_user):
         return
     await SettingsService.set(session, "smtp_password", (message.text or "").strip(), db_user.id)
@@ -141,7 +156,7 @@ async def p_pass(message: Message, state: FSMContext, session: AsyncSession, db_
         await message.delete()
     except Exception:
         pass
-    await message.answer("✅ Senha SMTP salva.")
+    await message.answer("✅ Senha salva.")
 
 
 @router.callback_query(F.data == "admin:smtp_from")
@@ -149,7 +164,7 @@ async def cb_from(callback: CallbackQuery, state: FSMContext, db_user: User):
     if not is_admin(db_user):
         return
     await state.set_state(SmtpStates.from_addr)
-    await callback.message.edit_text("Envie o e-mail remetente (From):")
+    await callback.message.edit_text("E-mail remetente (From):")
     await callback.answer()
 
 
