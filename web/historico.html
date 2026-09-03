@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Histórico de saques | Larizinha Store</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-badge">LS</div>
+        <span>Histórico</span>
+      </div>
+      <button class="theme-toggle" type="button" id="themeBtn">Tema escuro</button>
+    </div>
+
+    <nav class="nav-menu">
+      <a href="/saque/form">Saque</a>
+      <a class="active" href="/historico">Histórico</a>
+      <a href="/termos">Termos</a>
+    </nav>
+
+    <div class="card">
+      <h1>Histórico de saques</h1>
+      <p class="subtitle">
+        Lista vinculada ao seu usuário do Telegram. Os dados finais virão da API do bot.
+      </p>
+
+      <div id="list">
+        <div class="history-item">
+          <div class="row">
+            <strong>R$ 20,00</strong>
+            <span class="badge badge-pending">Pendente</span>
+          </div>
+          <div class="row"><span>Método</span><span>Transferência</span></div>
+          <div class="row"><span>Data</span><span>02/09/2026 21:00</span></div>
+        </div>
+        <div class="history-item">
+          <div class="row">
+            <strong>R$ 50,00</strong>
+            <span class="badge badge-paid">Pago</span>
+          </div>
+          <div class="row"><span>Método</span><span>Pix</span></div>
+          <div class="row"><span>Data</span><span>01/09/2026 18:12</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">Os status reais serão sincronizados com o bot.</div>
+  </div>
+  <script>
+    const THEME_KEY = "ls_theme";
+    function applyTheme(t) {
+      document.documentElement.setAttribute("data-theme", t);
+      document.getElementById("themeBtn").textContent =
+        t === "dark" ? "Tema claro" : "Tema escuro";
+      localStorage.setItem(THEME_KEY, t);
+    }
+    applyTheme(localStorage.getItem(THEME_KEY) || "light");
+    document.getElementById("themeBtn").onclick = () => {
+      const cur = document.documentElement.getAttribute("data-theme");
+      applyTheme(cur === "dark" ? "light" : "dark");
+    };
+  </script>
+</body>
+</html>
