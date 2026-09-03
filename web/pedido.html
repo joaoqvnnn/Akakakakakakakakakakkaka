@@ -5,75 +5,49 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pedido seguro | Larizinha Store</title>
   <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f1115; color: #eee; margin: 0; }
+    .app-shell { max-width: 480px; margin: 0 auto; padding: 20px; }
+    .card { background: #1a1d24; border-radius: 16px; padding: 20px; }
+    input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 10px; border: none; box-sizing: border-box; }
+    input { background: #111; color: #fff; }
+    button { background: #4f8cff; color: #fff; font-weight: 700; cursor: pointer; }
+    .hint { opacity: .7; font-size: 13px; }
+    .alert { padding: 10px; border-radius: 8px; margin: 10px 0; }
+    .alert-ok { background: #1b3d2f; }
+    .alert-err { background: #3d1b1b; }
+  </style>
 </head>
 <body>
   <div class="app-shell">
-    <div class="topbar">
-      <div class="brand">
-        <div class="brand-badge">LS</div>
-        <span>Acesso ao pedido</span>
-      </div>
-      <button class="theme-toggle" type="button" id="themeBtn">Tema escuro</button>
-    </div>
-
     <div class="card">
       <h1>Compra realizada com sucesso</h1>
-      <p class="subtitle" id="summary">Carregando dados do pedido…</p>
-
+      <p class="hint" id="summary">Carregando dados do pedido…</p>
       <div id="msg" class="alert" style="display:none;"></div>
-
       <form id="unlockForm">
-        <label for="password">Senha de segurança (a mesma do Telegram)</label>
-        <input
-          id="password"
-          type="password"
-          autocomplete="current-password"
-          placeholder="••••••••"
-          required
-        />
+        <label for="password">Senha de segurança (Telegram)</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" required />
         <p class="hint">A senha não fica visível enquanto você digita.</p>
-        <button class="btn" type="submit">Entrar e ver acesso (PDF)</button>
+        <button type="submit">Entrar e baixar PDF do acesso</button>
       </form>
     </div>
-    <div class="footer">Área segura · Larizinha Store</div>
   </div>
-
   <script>
-    const THEME_KEY = "ls_theme";
-    function applyTheme(t) {
-      document.documentElement.setAttribute("data-theme", t);
-      document.getElementById("themeBtn").textContent =
-        t === "dark" ? "Tema claro" : "Tema escuro";
-      localStorage.setItem(THEME_KEY, t);
-    }
-    applyTheme(localStorage.getItem(THEME_KEY) || "light");
-    document.getElementById("themeBtn").onclick = () => {
-      const cur = document.documentElement.getAttribute("data-theme");
-      applyTheme(cur === "dark" ? "light" : "dark");
-    };
-
     const parts = location.pathname.split("/").filter(Boolean);
     const orderUuid = parts[1] || "";
     const token = new URLSearchParams(location.search).get("t") || "";
 
     async function loadMeta() {
       try {
-        const r = await fetch(
-          `/api/pedido/${encodeURIComponent(orderUuid)}?t=${encodeURIComponent(token)}`
-        );
+        const r = await fetch(`/api/pedido/${encodeURIComponent(orderUuid)}?t=${encodeURIComponent(token)}`);
         const data = await r.json();
         if (!data.ok) {
-          document.getElementById("summary").textContent =
-            data.error || "Pedido inválido ou link expirado.";
+          document.getElementById("summary").textContent = data.error || "Pedido inválido.";
           document.getElementById("unlockForm").style.display = "none";
           return;
         }
         document.getElementById("summary").innerHTML =
-          `<b>${data.product_name}</b><br/>` +
-          `Valor: R$ ${data.price}<br/>` +
-          `Data: ${data.date}<br/>` +
-          `Vencimento: ${data.expires}<br/>` +
-          `Pagamento: ${data.payment_method}`;
+          `<b>${data.product_name}</b><br/>Valor: R$ ${data.price}<br/>Data: ${data.date}<br/>Vencimento: ${data.expires}<br/>Pagamento: ${data.payment_method}`;
       } catch (e) {
         document.getElementById("summary").textContent = "API offline.";
       }
@@ -99,7 +73,7 @@
           a.click();
           msg.className = "alert alert-ok";
           msg.style.display = "block";
-          msg.textContent = "PDF liberado. Download iniciado.";
+          msg.textContent = "PDF liberado.";
           return;
         }
         const data = await r.json();
