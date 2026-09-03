@@ -1,7 +1,5 @@
 import logging
-from typing import Optional
-
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
@@ -11,22 +9,14 @@ logger = logging.getLogger(__name__)
 
 
 class AIAssistant:
-    """
-    Interpreta frases como:
-      - quero ver meu histórico
-      - minhas compras
-      - meu saldo
-    Usa OpenAI se OPENAI_API_KEY existir; senão regras locais.
-    """
-
     @staticmethod
     def _local_intent(text: str) -> str:
         t = (text or "").lower()
-        if any(w in t for w in ("histórico", "historico", "compras", "pedidos")):
+        if any(w in t for w in ("historico", "histórico", "compras", "pedidos")):
             return "history"
         if "saldo" in t or "carteira" in t:
             return "balance"
-        if "afiliad" in t or "indicação" in t or "indicacao" in t:
+        if "afiliad" in t or "indicac" in t or "indicaç" in t:
             return "affiliate"
         if "suporte" in t or "ajuda" in t:
             return "support"
@@ -46,10 +36,7 @@ class AIAssistant:
                 messages=[
                     {
                         "role": "system",
-                        "content": (
-                            "Classifique a intenção do usuário da loja Telegram. "
-                            "Responda só uma palavra: history|balance|affiliate|support|unknown"
-                        ),
+                        "content": "Classifique a intencao. Responda so: history|balance|affiliate|support|unknown",
                     },
                     {"role": "user", "content": text},
                 ],
@@ -66,20 +53,16 @@ class AIAssistant:
     async def build_history_text(session: AsyncSession, user: User) -> str:
         result = await session.execute(
             select(Order)
-            .where(
-                Order.user_id == user.id,
-                Order.status == OrderStatus.DELIVERED,
-            )
+            .where(Order.user_id == user.id, Order.status == OrderStatus.DELIVERED)
             .order_by(Order.created_at.desc())
             .limit(20)
         )
         orders = list(result.scalars().all())
         if not orders:
-            return "Você ainda não possui compras."
-        lines = [f"🧾 Histórico de {user.id} ({len(orders)} pedidos)\n"]
+            return "Voce ainda nao possui compras."
+        lines = [f"Historico de {user.id} ({len(orders)} pedidos)\n"]
         for o in orders:
             lines.append(
-                f"• {o.created_at.strftime('%d/%m/%Y')} | R$ {o.total_price:.2f} | "
-                f"{o.uuid[:8]}… | {o.delivery_content or '—'}"
+                f"- {o.created_at.strftime('%d/%m/%Y')} | R$ {o.total_price:.2f} | {o.uuid[:8]}..."
             )
         return "\n".join(lines)
