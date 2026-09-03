@@ -1,25 +1,35 @@
-import logging
-
 from aiogram import Bot
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import Payment
-
-logger = logging.getLogger(__name__)
+from database.session import AsyncSessionLocal
+from services.messages import MessageService
 
 
 async def notify_user_payment_approved(bot: Bot, payment: Payment) -> None:
+    amount = payment.amount
+    bonus = payment.bonus_amount or 0
+    total = amount + (bonus or 0)
+    text = (
+        f"✅ <b>PAGAMENTO APROVADO!</b>\n\n"
+        f"💰 Valor: <b>R$ {amount:.2f}</b>\n"
+        f"🎁 Bônus: <b>R$ {float(bonus):.2f}</b>\n"
+        f"💳 Total creditado: <b>R$ {float(total):.2f}</b>"
+    )
     try:
-        text = (
-            f"✅ <b>PAGAMENTO APROVADO!</b>\n\n"
-            f"💰 Valor: <b>R$ {payment.amount:.2f}</b>\n"
-            f"🎁 Bônus: <b>R$ {payment.bonus_amount:.2f}</b>\n"
-            f"💳 Total creditado: <b>R$ {payment.total_credited:.2f}</b>\n\n"
-            f"Seu saldo já está disponível. Use /saldo para conferir."
-        )
-        await bot.send_message(
-            chat_id=payment.user_id,
-            text=text,
-            parse_mode="HTML",
-        )
-    except Exception as e:
-        logger.warning("Falha ao notificar user %s: %s", payment.user_id, e)
+        async with AsyncSessionLocal() as session:
+            tpl = await MessageService.get_rendered(
+                session,
+                "payment_approved",
+                amount=f"{amount:.2f}",
+                bonus=f"{float(bonus):.2f}",
+                total=f"{float(total):.2f}",
+            )
+            text = tpl["content"]
+            await session.commit()
+    except Exception:
+        pass
+    try:
+        await bot.send_message(payment.user_id, text, parse_mode="HTML")
+    except Exception:
+        pass
