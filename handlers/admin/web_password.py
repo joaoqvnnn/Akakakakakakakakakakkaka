@@ -26,12 +26,15 @@ async def cb_web_password(callback: CallbackQuery, session: AsyncSession, db_use
     text = (
         "🔐 <b>SENHA DO SITE DE SAQUE</b>\n\n"
         f"Senha atual: <code>{current}</code>\n\n"
-        "É a senha pedida na página web antes de preencher banco/agência/conta.\n"
+        "É a senha da página web antes de preencher banco/agência/conta.\n"
         "Diferente da senha de saque do cliente no Telegram."
     )
     b = InlineKeyboardBuilder()
     b.row(
-        InlineKeyboardButton(text="✏️ Alterar senha do site", callback_data="admin:web_pwd_set")
+        InlineKeyboardButton(
+            text="✏️ Alterar senha do site",
+            callback_data="admin:web_pwd_set",
+        )
     )
     b.row(InlineKeyboardButton(text="🔙 Voltar", callback_data="admin:cfg"))
     await callback.message.edit_text(text, reply_markup=b.as_markup(), parse_mode="HTML")
