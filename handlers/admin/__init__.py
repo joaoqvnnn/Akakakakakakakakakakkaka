@@ -9,6 +9,10 @@ from handlers.admin.giftcards import router as giftcards_router
 from handlers.admin.payments import router as payments_router
 from handlers.admin.broadcast import router as broadcast_router
 from handlers.admin.smtp import router as smtp_router
+from handlers.admin.buttons import router as buttons_router
+from handlers.admin.products_media import router as products_media_router
+from handlers.admin.welcome_media import router as welcome_media_router
+from handlers.admin.withdraws import router as withdraws_router
 
 
 def setup_admin_routers() -> Router:
@@ -22,4 +26,8 @@ def setup_admin_routers() -> Router:
     router.include_router(payments_router)
     router.include_router(broadcast_router)
     router.include_router(smtp_router)
+    router.include_router(buttons_router)
+    router.include_router(products_media_router)
+    router.include_router(welcome_media_router)
+    router.include_router(withdraws_router)
     return router
