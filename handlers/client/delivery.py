@@ -10,91 +10,15 @@ from database.models import User, Order, Product
 from keyboards.client import profile_kb, main_menu_kb
 from services.settings_service import SettingsService
 from services.messages import MessageService
-from services.email_smtp import EmailService
 from services.whatsapp_baileys import WhatsAppBaileysService, normalize_phone
-from services.whatsapp_order_flow import WhatsAppOrderFlow
-from utils.validators import is_valid_email
 
 router = Router(name="delivery")
 
 
 class DeliveryStates(StatesGroup):
-    waiting_email = State()
     waiting_whatsapp = State()
     confirm_whatsapp = State()
     waiting_release_password = State()
-
-
-@router.callback_query(F.data.startswith("order_email:"))
-async def cb_order_email(
-    callback: CallbackQuery, state: FSMContext, session: AsyncSession, db_user: User
-):
-    order_id = int(callback.data.split(":")[1])
-    order = await session.get(Order, order_id)
-    if not order or order.user_id != db_user.id:
-        await callback.answer("Pedido não encontrado.", show_alert=True)
-        return
-    await state.set_state(DeliveryStates.waiting_email)
-    await state.update_data(order_id=order_id)
-    hint = f"\nAtual: <code>{db_user.email}</code>" if db_user.email else ""
-    await callback.message.answer(
-        f"📧 Digite o e-mail para receber a compra:{hint}",
-        parse_mode="HTML",
-    )
-    await callback.answer()
-
-
-@router.message(DeliveryStates.waiting_email)
-async def process_order_email(
-    message: Message, state: FSMContext, session: AsyncSession, db_user: User
-):
-    email = (message.text or "").strip()
-    data = await state.get_data()
-    await state.clear()
-    if not is_valid_email(email):
-        await message.answer("❌ E-mail inválido.")
-        return
-    order = await session.get(Order, data.get("order_id"))
-    if not order or order.user_id != db_user.id:
-        await message.answer("❌ Pedido não encontrado.")
-        return
-    order.delivery_email = email
-    db_user.email = email
-    product = await session.get(Product, order.product_id)
-    product_name = product.name if product else "Produto"
-    activation = (await MessageService.get_rendered(session, "delivery_activation_help"))["content"]
-    support = await SettingsService.get(session, "support_link", settings.SUPPORT_LINK)
-    store = await SettingsService.get(session, "store_name", settings.STORE_NAME)
-    body = (
-        await MessageService.get_rendered(
-            session,
-            "delivery_email",
-            store_name=store,
-            product_name=product_name,
-            price=f"{order.total_price:.2f}",
-            date=order.created_at.strftime("%d/%m/%Y %H:%M:%S"),
-            payment_method=order.payment_method.value,
-            order_id=order.uuid,
-            delivery=order.delivery_content or "—",
-            activation_help=activation,
-            support_link=support,
-        )
-    )["content"]
-    sent = await EmailService.send(
-        session, email, f"Sua compra — {product_name} | {store}", body
-    )
-    if sent:
-        await message.answer(
-            f"✅ E-mail enviado para <code>{email}</code>",
-            parse_mode="HTML",
-            reply_markup=profile_kb(),
-        )
-    else:
-        await message.answer(
-            f"📧 Salvo: <code>{email}</code>\n\n<code>{body[:3000]}</code>",
-            parse_mode="HTML",
-            reply_markup=profile_kb(),
-        )
 
 
 @router.callback_query(F.data.startswith("order_whatsapp:"))
