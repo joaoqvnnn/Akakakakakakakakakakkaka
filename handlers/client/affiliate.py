@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from database.models import User, AffiliateWithdraw
-from keyboards.client_dynamic import affiliates_kb, main_menu_kb
+from keyboards.client_dynamic import affiliates_kb
 from services.settings_service import SettingsService
 
 router = Router(name="affiliates")
