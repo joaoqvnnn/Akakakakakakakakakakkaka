@@ -1,5 +1,6 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,6 +8,7 @@ from config import settings
 from database.models import User, AffiliateWithdraw
 from keyboards.client_dynamic import affiliates_kb
 from services.settings_service import SettingsService
+from services.buttons import ButtonService
 
 router = Router(name="affiliates")
 
@@ -32,7 +34,7 @@ async def cb_affiliates(
     text = (
         f"💰 <b>PROGRAMA DE AFILIADOS</b>\n\n"
         f"⚙️ Status: <b>{status}</b>\n"
-        f"🧲 Sua comissão: <b>{commission}%</b> (de todas recargas do indicado)\n\n"
+        f"🧲 Sua comissão: <b>{commission}%</b>\n\n"
         f"👥 Indicações: <b>{db_user.total_referrals}</b>\n"
         f"🪙 Total ganho: <b>R$ {float(db_user.affiliate_earned_total or 0):.2f}</b>\n"
         f"📊 Média: <b>R$ {avg:.2f}</b>\n"
@@ -41,7 +43,6 @@ async def cb_affiliates(
         f"⭐ Pontos: <b>{db_user.affiliate_points}</b>\n\n"
         f"🌱 Nível: <b>Iniciante</b>\n"
         f"🎯 Próxima meta: 5 ({remaining} restantes)\n\n"
-        f"ℹ️ Seus indicados geram comissão nas recargas.\n"
         f"🔗 Seu link:\n<code>{link}</code>"
     )
     can = float(db_user.affiliate_balance or 0) >= float(min_w) and enabled
@@ -54,18 +55,14 @@ async def cb_affiliates(
 async def cb_copy_link(callback: CallbackQuery, db_user: User):
     bot_user = (getattr(settings, "BOT_USERNAME", None) or "larizinhastorebot").lstrip("@")
     link = f"https://t.me/{bot_user}?start={db_user.id}"
-    await callback.answer("Link na mensagem abaixo")
-    await callback.message.answer(f"🔗 Seu link de afiliado:\n{link}")
+    await callback.answer("Link abaixo")
+    await callback.message.answer(f"🔗 {link}")
 
 
 @router.callback_query(F.data == "affiliate_history")
 async def cb_aff_history(
     callback: CallbackQuery, session: AsyncSession, db_user: User
 ):
-    from aiogram.types import InlineKeyboardButton
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from services.buttons import ButtonService
-
     min_w = await SettingsService.get_float(session, "affiliate_min_withdraw")
     result = await session.execute(
         select(AffiliateWithdraw)
@@ -74,12 +71,10 @@ async def cb_aff_history(
         .limit(15)
     )
     items = list(result.scalars().all())
-
     if not items:
         text = (
             f"📊 <b>HISTÓRICO DE SAQUES</b>\n\n"
-            f"Você ainda não solicitou nenhum saque.\n\n"
-            f"📉 Saque mínimo atual: <b>R$ {min_w:.2f}</b>"
+            f"Nenhum saque.\nMínimo: <b>R$ {min_w:.2f}</b>"
         )
     else:
         lines = ["📊 <b>HISTÓRICO DE SAQUES</b>\n"]
@@ -93,7 +88,5 @@ async def cb_aff_history(
     back = await ButtonService.get(session, "btn_back")
     b = InlineKeyboardBuilder()
     b.row(InlineKeyboardButton(text=back, callback_data="affiliates"))
-    await callback.message.edit_text(
-        text, reply_markup=b.as_markup(), parse_mode="HTML"
-    )
+    await callback.message.edit_text(text, reply_markup=b.as_markup(), parse_mode="HTML")
     await callback.answer()
