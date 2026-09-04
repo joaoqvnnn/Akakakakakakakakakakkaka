@@ -88,7 +88,7 @@ async def cb_host(callback: CallbackQuery, state: FSMContext, db_user: User):
     if not is_admin(db_user):
         return
     await state.set_state(SmtpStates.host)
-    await callback.message.edit_text("Host SMTP (ex: smtp.gmail.com):")
+    await callback.message.edit_text("Host SMTP:")
     await callback.answer()
 
 
@@ -164,7 +164,7 @@ async def cb_from(callback: CallbackQuery, state: FSMContext, db_user: User):
     if not is_admin(db_user):
         return
     await state.set_state(SmtpStates.from_addr)
-    await callback.message.edit_text("E-mail remetente (From):")
+    await callback.message.edit_text("From (e-mail remetente):")
     await callback.answer()
 
 
