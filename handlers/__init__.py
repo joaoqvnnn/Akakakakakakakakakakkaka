@@ -13,8 +13,8 @@ from handlers.client.delivery import router as delivery_router
 from handlers.client.withdraw_pix import router as withdraw_pix_router
 from handlers.client.security import router as security_router
 from handlers.client.points import router as points_router
-from handlers.client.ai_chat import router as ai_router
 from handlers.admin import setup_admin_routers
+
 
 def setup_routers() -> Router:
     root = Router()
@@ -32,9 +32,14 @@ def setup_routers() -> Router:
     root.include_router(withdraw_pix_router)
     root.include_router(security_router)
     root.include_router(points_router)
+
     root.include_router(setup_admin_routers())
-    
-    # AI sempre por último
-    root.include_router(ai_router)
-    
+
+    # IA por último (depois dos FSM)
+    try:
+        from handlers.client.ai_chat import router as ai_router
+        root.include_router(ai_router)
+    except Exception:
+        pass
+
     return root
